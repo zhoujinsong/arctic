@@ -491,5 +491,21 @@
                 </dependency>
             </dependencies>
         </profile>
+        <profile>
+            <id>fail-on-no-git-dir</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>pl.project13.maven</groupId>
+                        <artifactId>git-commit-id-plugin</artifactId>
+                        <version>4.0.0</version>
+                        <configuration>
+                            <failOnNoGitDirectory>true</failOnNoGitDirectory>
+                            <failOnUnableToExtractRepoInfo>true</failOnUnableToExtractRepoInfo>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 </project>
