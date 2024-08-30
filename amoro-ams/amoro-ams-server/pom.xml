@@ -34,6 +34,10 @@
     <name>Amoro Project AMS Server</name>
     <url>https://amoro.apache.org</url>
 
+    <properties>
+        <git-commit-id-plugin.fail-on-no-git-dir>false</git-commit-id-plugin.fail-on-no-git-dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.apache.amoro</groupId>
@@ -415,8 +419,8 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
-                    <failOnUnableToExtractRepoInfo>false</failOnUnableToExtractRepoInfo>
+                    <failOnNoGitDirectory>${git-commit-id-plugin.fail-on-no-git-dir}</failOnNoGitDirectory>
+                    <failOnUnableToExtractRepoInfo>${git-commit-id-plugin.fail-on-no-git-dir}</failOnUnableToExtractRepoInfo>
                     <dotGitDirectory>${project.basedir}/.git</dotGitDirectory>
                     <generateGitPropertiesFile>true</generateGitPropertiesFile>
                     <generateGitPropertiesFilename>
@@ -493,19 +497,9 @@
         </profile>
         <profile>
             <id>fail-on-no-git-dir</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>pl.project13.maven</groupId>
-                        <artifactId>git-commit-id-plugin</artifactId>
-                        <version>4.0.0</version>
-                        <configuration>
-                            <failOnNoGitDirectory>true</failOnNoGitDirectory>
-                            <failOnUnableToExtractRepoInfo>true</failOnUnableToExtractRepoInfo>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
+            <properties>
+                <git-commit-id-plugin.fail-on-no-git-dir>true</git-commit-id-plugin.fail-on-no-git-dir>
+            </properties>
         </profile>
     </profiles>
 </project>
