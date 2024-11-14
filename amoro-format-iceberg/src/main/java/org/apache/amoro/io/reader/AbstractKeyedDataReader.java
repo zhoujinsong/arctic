@@ -25,7 +25,6 @@ import org.apache.amoro.shade.guava32.com.google.common.collect.Sets;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
@@ -49,8 +48,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
- * Abstract implementation of mixed-format data reader consuming {@link KeyedTableScanTask}, return
- * records after filtering with {@link MixedDeleteFilter}.
+ * Abstract implementation of mixed-format data reader consuming {@link KeyedTableScanTask}.
  *
  * @param <T> to indicate the record data type.
  */
@@ -78,50 +76,6 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
       Set<DataTreeNode> sourceNodes,
       boolean reuseContainer,
       StructLikeCollections structLikeCollections) {
-    this(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        sourceNodes,
-        reuseContainer);
-    this.structLikeCollections = structLikeCollections;
-  }
-
-  public AbstractKeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer) {
-    this(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        null,
-        reuseContainer);
-  }
-
-  public AbstractKeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
-      boolean reuseContainer) {
     this.fileIO = fileIO;
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
@@ -131,93 +85,26 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
     this.convertConstant = convertConstant;
     this.sourceNodes = sourceNodes != null ? Collections.unmodifiableSet(sourceNodes) : null;
     this.reuseContainer = reuseContainer;
+    if (structLikeCollections != null) {
+      this.structLikeCollections = structLikeCollections;
+    }
   }
 
-  public CloseableIterator<T> readData(KeyedTableScanTask keyedTableScanTask) {
-    MixedDeleteFilter<T> mixedDeleteFilter =
-        createMixedDeleteFilter(
-            keyedTableScanTask,
-            tableSchema,
+  protected CloseableIterable<T> readFile(FileScanTask fileScanTask, Schema projectedSchema) {
+    switch (fileScanTask.file().format()) {
+      case PARQUET:
+        return newParquetIterable(
+            fileScanTask,
             projectedSchema,
-            primaryKeySpec,
-            sourceNodes,
-            structLikeCollections);
-    Schema newProjectedSchema = mixedDeleteFilter.requiredSchema();
-
-    CloseableIterable<T> dataIterable =
-        mixedDeleteFilter.filter(
-            CloseableIterable.concat(
-                CloseableIterable.transform(
-                    CloseableIterable.withNoopClose(keyedTableScanTask.dataTasks()),
-                    fileScanTask -> {
-                      switch (fileScanTask.file().format()) {
-                        case PARQUET:
-                          return newParquetIterable(
-                              fileScanTask,
-                              newProjectedSchema,
-                              DataReaderCommon.getIdToConstant(
-                                  fileScanTask, newProjectedSchema, convertConstant));
-                        case ORC:
-                          return newOrcIterable(
-                              fileScanTask,
-                              newProjectedSchema,
-                              DataReaderCommon.getIdToConstant(
-                                  fileScanTask, newProjectedSchema, convertConstant));
-                        default:
-                          throw new UnsupportedOperationException(
-                              "Cannot read unknown format: " + fileScanTask.file().format());
-                      }
-                    })));
-    return dataIterable.iterator();
-  }
-
-  // TODO Return deleted record produced by equality delete file only now, should refactor the
-  // reader to return all
-  // deleted records.
-  public CloseableIterator<T> readDeletedData(KeyedTableScanTask keyedTableScanTask) {
-    boolean hasDeleteFile =
-        keyedTableScanTask.mixedEquityDeletes().size() > 0
-            || keyedTableScanTask.dataTasks().stream()
-                .anyMatch(mixedFileScanTask -> mixedFileScanTask.deletes().size() > 0);
-    if (hasDeleteFile) {
-      MixedDeleteFilter<T> mixedDeleteFilter =
-          createMixedDeleteFilter(
-              keyedTableScanTask,
-              tableSchema,
-              projectedSchema,
-              primaryKeySpec,
-              sourceNodes,
-              structLikeCollections);
-
-      Schema newProjectedSchema = mixedDeleteFilter.requiredSchema();
-
-      CloseableIterable<T> dataIterable =
-          mixedDeleteFilter.filterNegate(
-              CloseableIterable.concat(
-                  CloseableIterable.transform(
-                      CloseableIterable.withNoopClose(keyedTableScanTask.dataTasks()),
-                      fileScanTask -> {
-                        switch (fileScanTask.file().format()) {
-                          case PARQUET:
-                            return newParquetIterable(
-                                fileScanTask,
-                                newProjectedSchema,
-                                DataReaderCommon.getIdToConstant(
-                                    fileScanTask, newProjectedSchema, convertConstant));
-                          case ORC:
-                            return newOrcIterable(
-                                fileScanTask,
-                                newProjectedSchema,
-                                DataReaderCommon.getIdToConstant(
-                                    fileScanTask, newProjectedSchema, convertConstant));
-                          default:
-                            throw new UnsupportedOperationException(
-                                "Cannot read unknown format: " + fileScanTask.file().format());
-                        }
-                      })));
-      return dataIterable.iterator();
-    } else {
-      return CloseableIterator.empty();
+            DataReaderCommon.getIdToConstant(fileScanTask, projectedSchema, convertConstant));
+      case ORC:
+        return newOrcIterable(
+            fileScanTask,
+            projectedSchema,
+            DataReaderCommon.getIdToConstant(fileScanTask, projectedSchema, convertConstant));
+      default:
+        throw new UnsupportedOperationException(
+            "Cannot read unknown format: " + fileScanTask.file().format());
     }
   }
 
@@ -261,7 +148,9 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
       FileScanTask task, Schema schema, Map<Integer, ?> idToConstant) {
     Schema readSchemaWithoutConstantAndMetadataFields =
         TypeUtil.selectNot(
-            schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+            schema,
+            Sets.union(
+                idToConstant.keySet(), org.apache.iceberg.MetadataColumns.metadataFieldIds()));
 
     ORC.ReadBuilder builder =
         ORC.read(fileIO.newInputFile(task.file().path().toString()))
@@ -278,19 +167,9 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
     return builder.build();
   }
 
-  private class GenericMixedDeleteFilter extends MixedDeleteFilter<T> {
+  protected class GenericMixedDeleteFilter extends MixedDeleteFilter<T> {
 
     protected Function<T, StructLike> asStructLike;
-
-    protected GenericMixedDeleteFilter(
-        KeyedTableScanTask keyedTableScanTask,
-        Schema tableSchema,
-        Schema requestedSchema,
-        PrimaryKeySpec primaryKeySpec) {
-      super(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec);
-      this.asStructLike =
-          AbstractKeyedDataReader.this.toStructLikeFunction().apply(requiredSchema());
-    }
 
     protected GenericMixedDeleteFilter(
         KeyedTableScanTask keyedTableScanTask,
@@ -310,17 +189,6 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
           AbstractKeyedDataReader.this.toStructLikeFunction().apply(requiredSchema());
     }
 
-    protected GenericMixedDeleteFilter(
-        KeyedTableScanTask keyedTableScanTask,
-        Schema tableSchema,
-        Schema requestedSchema,
-        PrimaryKeySpec primaryKeySpec,
-        Set<DataTreeNode> sourceNodes) {
-      super(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, sourceNodes);
-      this.asStructLike =
-          AbstractKeyedDataReader.this.toStructLikeFunction().apply(requiredSchema());
-    }
-
     @Override
     protected StructLike asStructLike(T record) {
       return asStructLike.apply(record);
@@ -336,6 +204,10 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
       return fileIO;
     }
   }
+
+  public abstract CloseableIterator<T> readData(KeyedTableScanTask keyedTableScanTask);
+
+  public abstract CloseableIterator<T> readDeletedData(KeyedTableScanTask keyedTableScanTask);
 
   protected abstract Function<MessageType, ParquetValueReader<?>> getParquetReaderFunction(
       Schema projectSchema, Map<Integer, ?> idToConstant);

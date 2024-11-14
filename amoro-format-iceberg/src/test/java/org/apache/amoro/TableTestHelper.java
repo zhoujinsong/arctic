@@ -19,6 +19,7 @@
 package org.apache.amoro;
 
 import org.apache.amoro.data.ChangeAction;
+import org.apache.amoro.io.writer.RecordWithAction;
 import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.MixedTable;
 import org.apache.amoro.table.PrimaryKeySpec;
@@ -61,6 +62,9 @@ public interface TableTestHelper {
       ChangeAction action,
       List<Record> records,
       boolean orderedWrite);
+
+  List<DataFile> writeChangeStore(
+      KeyedTable keyedTable, Long txId, List<RecordWithAction> records, boolean orderedWrite);
 
   List<DataFile> writeBaseStore(
       MixedTable keyedTable, long txId, List<Record> records, boolean orderedWrite);

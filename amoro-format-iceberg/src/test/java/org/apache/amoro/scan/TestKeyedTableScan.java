@@ -62,7 +62,6 @@ public class TestKeyedTableScan extends TableDataTestBase {
                 task -> {
                   allBaseTasks.addAll(task.baseTasks());
                   allInsertTasks.addAll(task.insertTasks());
-                  allEquDeleteTasks.addAll(task.mixedEquityDeletes());
                 });
       }
     }

@@ -26,7 +26,7 @@ import org.apache.amoro.flink.read.MixedIncrementalLoader;
 import org.apache.amoro.flink.read.hybrid.enumerator.MergeOnReadIncrementalPlanner;
 import org.apache.amoro.flink.read.hybrid.reader.DataIteratorReaderFunction;
 import org.apache.amoro.flink.table.MixedFormatTableLoader;
-import org.apache.amoro.hive.io.reader.AbstractAdaptHiveKeyedDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
 import org.apache.amoro.table.MixedTable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.MetricGroup;
@@ -73,7 +73,7 @@ public class BasicLookupFunction<T> implements Serializable {
   private transient AtomicLong lookupLoadingTimeMs;
   private final Predicate<T> predicate;
   private final TableFactory<T> kvTableFactory;
-  private final AbstractAdaptHiveKeyedDataReader<T> flinkMORDataReader;
+  private final AbstractMixedHiveReplaceDataReader<T> flinkMORDataReader;
   private final DataIteratorReaderFunction<T> readerFunction;
 
   private transient ScheduledExecutorService executor;
@@ -88,7 +88,7 @@ public class BasicLookupFunction<T> implements Serializable {
       MixedFormatTableLoader tableLoader,
       Configuration config,
       Predicate<T> predicate,
-      AbstractAdaptHiveKeyedDataReader<T> adaptHiveKeyedDataReader,
+      AbstractMixedHiveReplaceDataReader<T> adaptHiveKeyedDataReader,
       DataIteratorReaderFunction<T> readerFunction) {
     checkArgument(
         mixedTable.isKeyedTable(),

@@ -197,7 +197,7 @@ public class KeyedSparkBatchScan implements Scan, Batch, SupportsReportStatistic
 
   private static class RowReader implements PartitionReader<InternalRow> {
 
-    SparkKeyedDataReader reader;
+    SparkReplaceDataReader reader;
     Iterator<KeyedTableScanTask> scanTasks;
     KeyedTableScanTask currentScanTask;
     CloseableIterator<InternalRow> currentIterator = CloseableIterator.empty();
@@ -205,7 +205,7 @@ public class KeyedSparkBatchScan implements Scan, Batch, SupportsReportStatistic
 
     RowReader(MixedFormatInputPartition task) {
       reader =
-          new SparkKeyedDataReader(
+          new SparkReplaceDataReader(
               task.io,
               task.tableSchema,
               task.expectedSchema,

@@ -37,7 +37,7 @@ public class MergeOnReadDataIterator extends DataIterator<RowData> {
   private final CloseableIterator<RowData> iterator;
 
   public MergeOnReadDataIterator(
-      FlinkKeyedMORDataReader flinkKeyedMORDataReader,
+      FlinkReplaceMORDataReader flinkKeyedMORDataReader,
       KeyedTableScanTask keyedTableScanTask,
       AuthenticatedFileIO io) {
     super();

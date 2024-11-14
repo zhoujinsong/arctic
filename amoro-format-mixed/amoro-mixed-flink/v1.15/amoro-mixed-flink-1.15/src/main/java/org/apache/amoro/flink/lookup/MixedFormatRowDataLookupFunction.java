@@ -20,7 +20,7 @@ package org.apache.amoro.flink.lookup;
 
 import org.apache.amoro.flink.read.hybrid.reader.DataIteratorReaderFunction;
 import org.apache.amoro.flink.table.MixedFormatTableLoader;
-import org.apache.amoro.hive.io.reader.AbstractAdaptHiveKeyedDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
 import org.apache.amoro.table.MixedTable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
@@ -48,7 +48,7 @@ public class MixedFormatRowDataLookupFunction extends TableFunction<RowData> {
       MixedFormatTableLoader tableLoader,
       Configuration config,
       Predicate<RowData> predicate,
-      AbstractAdaptHiveKeyedDataReader<RowData> flinkMORDataReader,
+      AbstractMixedHiveReplaceDataReader<RowData> flinkMORDataReader,
       DataIteratorReaderFunction<RowData> readerFunction) {
     this.basicLookupFunction =
         new BasicLookupFunction<>(

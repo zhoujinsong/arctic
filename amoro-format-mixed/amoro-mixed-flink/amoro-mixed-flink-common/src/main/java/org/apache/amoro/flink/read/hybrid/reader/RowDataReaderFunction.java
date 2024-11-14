@@ -26,7 +26,7 @@ import org.apache.amoro.flink.read.hybrid.split.MixedFormatSplit;
 import org.apache.amoro.flink.read.source.ChangeLogDataIterator;
 import org.apache.amoro.flink.read.source.DataIterator;
 import org.apache.amoro.flink.read.source.FileScanTaskReader;
-import org.apache.amoro.flink.read.source.FlinkKeyedMORDataReader;
+import org.apache.amoro.flink.read.source.FlinkReplaceMORDataReader;
 import org.apache.amoro.flink.read.source.FlinkUnkyedDataReader;
 import org.apache.amoro.flink.read.source.MergeOnReadDataIterator;
 import org.apache.amoro.flink.util.MixedFormatUtils;
@@ -113,8 +113,8 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   @Override
   public DataIterator<RowData> createDataIterator(MixedFormatSplit split) {
     if (split.isMergeOnReadSplit()) {
-      FlinkKeyedMORDataReader morDataReader =
-          new FlinkKeyedMORDataReader(
+      FlinkReplaceMORDataReader morDataReader =
+          new FlinkReplaceMORDataReader(
               io,
               tableSchema,
               readSchema,

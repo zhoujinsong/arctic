@@ -64,40 +64,17 @@ public abstract class ChangeTaskWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  protected DataWriterKey buildWriterKey(T row) {
-    DataWriterKey key = super.buildWriterKey(row);
-    ChangeAction action = action(row);
-    switch (action) {
-      case INSERT:
-      case UPDATE_AFTER:
-        return new DataWriterKey(
-            key.getPartitionKey(), key.getTreeNode(), DataFileType.INSERT_FILE);
-      case DELETE:
-      case UPDATE_BEFORE:
-        return new DataWriterKey(
-            key.getPartitionKey(), key.getTreeNode(), DataFileType.EQ_DELETE_FILE);
-      default:
-        throw new IllegalArgumentException("Unknown action:" + action.name());
-    }
-  }
-
-  @Override
   protected void write(TaskDataWriter<T> writer, T row) throws IOException {
     super.write(writer, appendFileOffset(row));
   }
 
+  @Override
+  protected DataFileType fileType() {
+    return DataFileType.CHANGE_FILE;
+  }
+
   private T appendFileOffset(T row) {
-    ChangeAction action = action(row);
-    switch (action) {
-      case INSERT:
-      case DELETE:
-      case UPDATE_BEFORE:
-        return appendMetaColumns(row, ++fileOffset);
-      case UPDATE_AFTER:
-        return appendMetaColumns(row, fileOffset);
-      default:
-        throw new IllegalArgumentException("Unknown action:" + action.name());
-    }
+    return appendMetaColumns(row, ++fileOffset);
   }
 
   /**

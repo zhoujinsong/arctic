@@ -20,7 +20,7 @@ package org.apache.amoro.hive.io.reader;
 
 import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
-import org.apache.amoro.io.reader.AbstractKeyedDataReader;
+import org.apache.amoro.io.reader.AbstractReplaceDataReader;
 import org.apache.amoro.io.reader.MixedDeleteFilter;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.table.PrimaryKeySpec;
@@ -40,9 +40,9 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /** AdaptHive can read all Data. */
-public abstract class AbstractAdaptHiveKeyedDataReader<T> extends AbstractKeyedDataReader<T> {
+public abstract class AbstractMixedHiveReplaceDataReader<T> extends AbstractReplaceDataReader<T> {
 
-  public AbstractAdaptHiveKeyedDataReader(
+  public AbstractMixedHiveReplaceDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
@@ -64,48 +64,6 @@ public abstract class AbstractAdaptHiveKeyedDataReader<T> extends AbstractKeyedD
         sourceNodes,
         reuseContainer,
         structLikeCollections);
-  }
-
-  public AbstractAdaptHiveKeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        reuseContainer);
-  }
-
-  public AbstractAdaptHiveKeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        sourceNodes,
-        reuseContainer);
   }
 
   @Override
@@ -157,7 +115,7 @@ public abstract class AbstractAdaptHiveKeyedDataReader<T> extends AbstractKeyedD
         PrimaryKeySpec primaryKeySpec) {
       super(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec);
       this.asStructLike =
-          AbstractAdaptHiveKeyedDataReader.this.toStructLikeFunction().apply(requiredSchema());
+          AbstractMixedHiveReplaceDataReader.this.toStructLikeFunction().apply(requiredSchema());
     }
 
     protected AdaptHiveGenericMixedDeleteFilter(
@@ -175,7 +133,7 @@ public abstract class AbstractAdaptHiveKeyedDataReader<T> extends AbstractKeyedD
           sourceNodes,
           structLikeCollections);
       this.asStructLike =
-          AbstractAdaptHiveKeyedDataReader.this.toStructLikeFunction().apply(requiredSchema());
+          AbstractMixedHiveReplaceDataReader.this.toStructLikeFunction().apply(requiredSchema());
     }
 
     protected AdaptHiveGenericMixedDeleteFilter(
@@ -186,7 +144,7 @@ public abstract class AbstractAdaptHiveKeyedDataReader<T> extends AbstractKeyedD
         Set<DataTreeNode> sourceNodes) {
       super(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, sourceNodes);
       this.asStructLike =
-          AbstractAdaptHiveKeyedDataReader.this.toStructLikeFunction().apply(requiredSchema());
+          AbstractMixedHiveReplaceDataReader.this.toStructLikeFunction().apply(requiredSchema());
     }
 
     @Override

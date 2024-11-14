@@ -18,8 +18,8 @@
 
 package org.apache.amoro.server.optimizing.flow;
 
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericKeyedDataReader;
 import org.apache.amoro.hive.io.reader.AdaptHiveGenericUnkeyedDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericReplaceDataReader;
 import org.apache.amoro.scan.CombinedScanTask;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Iterables;
@@ -57,8 +57,8 @@ public class DataReader {
   private List<Record> readKeyed(KeyedTable table)
       throws IOException, ExecutionException, InterruptedException {
     CloseableIterable<CombinedScanTask> combinedScanTasks = table.newScan().planTasks();
-    AdaptHiveGenericKeyedDataReader dataReader =
-        new AdaptHiveGenericKeyedDataReader(
+    MixedHiveGenericReplaceDataReader dataReader =
+        new MixedHiveGenericReplaceDataReader(
             table.io(),
             table.schema(),
             table.schema(),
@@ -67,7 +67,8 @@ public class DataReader {
             false,
             IdentityPartitionConverters::convertConstant,
             null,
-            false);
+            false,
+            null);
     List<CompletableFuture<List<Record>>> completableFutures = new ArrayList<>();
     for (CombinedScanTask combinedScanTask : combinedScanTasks) {
       for (KeyedTableScanTask scanTask : combinedScanTask.tasks()) {

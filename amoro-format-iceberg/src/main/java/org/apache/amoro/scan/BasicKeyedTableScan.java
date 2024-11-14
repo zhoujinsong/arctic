@@ -24,6 +24,7 @@ import org.apache.amoro.scan.expressions.BasicPartitionEvaluator;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
 import org.apache.amoro.table.BasicKeyedTable;
 import org.apache.amoro.table.TableProperties;
+import org.apache.amoro.utils.FileScanTaskUtil;
 import org.apache.amoro.utils.MixedTableUtil;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -32,7 +33,6 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.slf4j.Logger;
@@ -46,39 +46,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /** Basic implementation of {@link KeyedTableScan}, including the merge-on-read plan logical */
 public class BasicKeyedTableScan implements KeyedTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BasicKeyedTableScan.class);
 
   private final BasicKeyedTable table;
-  List<NodeFileScanTask> splitTasks = new ArrayList<>();
-  private final StructLikeMap<List<NodeFileScanTask>> fileScanTasks;
-  private final int lookBack;
-  private final long openFileCost;
-  private final long splitSize;
-  private Double splitTaskByDeleteRatio;
+  private final List<NodeFileScanTask> fileScanTasks = new ArrayList<>();
   private Expression expression;
 
   public BasicKeyedTableScan(BasicKeyedTable table) {
     this.table = table;
-    this.openFileCost =
-        PropertyUtil.propertyAsLong(
-            table.properties(),
-            TableProperties.SPLIT_OPEN_FILE_COST,
-            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
-    this.splitSize =
-        PropertyUtil.propertyAsLong(
-            table.properties(), TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
-    this.lookBack =
-        PropertyUtil.propertyAsInt(
-            table.properties(),
-            TableProperties.SPLIT_LOOKBACK,
-            TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    this.fileScanTasks = StructLikeMap.create(table.spec().partitionType());
   }
 
   /**
@@ -112,24 +91,11 @@ public class BasicKeyedTableScan implements KeyedTableScan {
       changeFileList = CloseableIterable.empty();
     }
 
-    // 1. group files by partition
     StructLikeMap<Collection<MixedFileScanTask>> partitionedFiles =
         groupFilesByPartition(table.spec(), changeFileList, baseFileList);
-    LOG.info("planning table {} need plan partition size {}", table.id(), partitionedFiles.size());
     partitionedFiles.forEach(this::partitionPlan);
-    LOG.info("planning table {} partitionPlan end", table.id());
-    // 2.split node task (FileScanTask -> FileScanTask List)
-    split();
-    LOG.info("planning table {} split end", table.id());
-    // 3.combine node task (FileScanTask List -> CombinedScanTask)
-    return combineNode(
-        CloseableIterable.withNoopClose(splitTasks), splitSize, lookBack, openFileCost);
-  }
-
-  @Override
-  public KeyedTableScan enableSplitTaskByDeleteRatio(double splitTaskByDeleteRatio) {
-    this.splitTaskByDeleteRatio = splitTaskByDeleteRatio;
-    return this;
+    return CloseableIterable.transform(
+        CloseableIterable.withNoopClose(fileScanTasks), BaseCombinedScanTask::new);
   }
 
   private CloseableIterable<MixedFileScanTask> planBaseFiles() {
@@ -164,100 +130,17 @@ public class BasicKeyedTableScan implements KeyedTableScan {
     return CloseableIterable.transform(changeTableScan.planFiles(), s -> (MixedFileScanTask) s);
   }
 
-  private void split() {
-    fileScanTasks.forEach(
-        (structLike, fileScanTasks1) -> {
-          for (NodeFileScanTask task : fileScanTasks1) {
-            if (task.dataTasks().size() < 2) {
-              splitTasks.add(task);
-              continue;
-            }
-
-            if (splitTaskByDeleteRatio != null) {
-              long deleteWeight =
-                  task.mixedEquityDeletes().stream()
-                      .mapToLong(s -> s.file().fileSizeInBytes())
-                      .map(s -> s + openFileCost)
-                      .sum();
-
-              long dataWeight =
-                  task.dataTasks().stream()
-                      .mapToLong(s -> s.file().fileSizeInBytes())
-                      .map(s -> s + openFileCost)
-                      .sum();
-              double deleteRatio = deleteWeight * 1.0 / dataWeight;
-
-              if (deleteRatio < splitTaskByDeleteRatio) {
-                long targetSize =
-                    Math.min(
-                        new Double(deleteWeight / splitTaskByDeleteRatio).longValue(), splitSize);
-                split(task, targetSize);
-                continue;
-              }
-            }
-
-            if (task.cost() <= splitSize) {
-              splitTasks.add(task);
-              continue;
-            }
-            split(task, splitSize);
-          }
-        });
-  }
-
-  private void split(NodeFileScanTask task, long targetSize) {
-    CloseableIterable<NodeFileScanTask> tasksIterable =
-        splitNode(
-            CloseableIterable.withNoopClose(task.dataTasks()),
-            task.mixedEquityDeletes(),
-            targetSize,
-            lookBack,
-            openFileCost);
-    splitTasks.addAll(Lists.newArrayList(tasksIterable));
-  }
-
-  public CloseableIterable<NodeFileScanTask> splitNode(
-      CloseableIterable<MixedFileScanTask> splitFiles,
-      List<MixedFileScanTask> deleteFiles,
-      long splitSize,
-      int lookback,
-      long openFileCost) {
-    Function<MixedFileScanTask, Long> weightFunc =
-        task -> Math.max(task.file().fileSizeInBytes(), openFileCost);
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
-            splitFiles),
-        datafiles -> packingTask(datafiles, deleteFiles));
-  }
-
-  private NodeFileScanTask packingTask(
-      List<MixedFileScanTask> datafiles, List<MixedFileScanTask> deleteFiles) {
-    // TODO Optimization: Add files in batch
-    return new NodeFileScanTask(
-        Stream.concat(datafiles.stream(), deleteFiles.stream()).collect(Collectors.toList()));
-  }
-
-  public CloseableIterable<CombinedScanTask> combineNode(
-      CloseableIterable<NodeFileScanTask> splitFiles,
-      long splitSize,
-      int lookback,
-      long openFileCost) {
-    Function<NodeFileScanTask, Long> weightFunc = file -> Math.max(file.cost(), openFileCost);
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
-            splitFiles),
-        BaseCombinedScanTask::new);
-  }
-
   /**
-   * Construct tree node task according to partition 1. Put all files into the node they originally
-   * belonged to 2. Find all data nodes, traverse, and find the delete that intersects them
+   * Construct tree node task for every partition:
+   *
+   * <ol>
+   *   <li>Group file scan task by node
+   *   <li>Reconstruct node file scan task according the read level
+   * </ol>
    */
   private void partitionPlan(StructLike partition, Collection<MixedFileScanTask> keyedTableTasks) {
-    Map<DataTreeNode, NodeFileScanTask> nodeFileScanTaskMap = new HashMap<>();
-    // planfiles() cannot guarantee the uniqueness of the file,
+    Map<DataTreeNode, NodeFileScanTask> originalNodeFileScanTaskMap = new HashMap<>();
+    // plan files cannot guarantee the uniqueness of the file,
     // so Set<path> here is used to remove duplicate files
     Set<String> pathSets = new HashSet<>();
     keyedTableTasks.forEach(
@@ -266,42 +149,36 @@ public class BasicKeyedTableScan implements KeyedTableScan {
             pathSets.add(task.file().path().toString());
             DataTreeNode treeNode = task.file().node();
             NodeFileScanTask nodeFileScanTask =
-                nodeFileScanTaskMap.getOrDefault(treeNode, new NodeFileScanTask(treeNode));
+                originalNodeFileScanTaskMap.computeIfAbsent(treeNode, NodeFileScanTask::new);
             nodeFileScanTask.addFile(task);
-            nodeFileScanTaskMap.put(treeNode, nodeFileScanTask);
           }
         });
 
-    nodeFileScanTaskMap.forEach(
-        (treeNode, nodeFileScanTask) -> {
-          if (!nodeFileScanTask.isDataNode()) {
-            return;
-          }
+    // Split the scan tasks based on the writing bucket of the current BaseStore,
+    // which should be evaluated according to the data size of the table.
+    int scanBucketCount =
+        PropertyUtil.propertyAsInt(
+            table.properties(),
+            TableProperties.BASE_FILE_INDEX_HASH_BUCKET,
+            TableProperties.BASE_FILE_INDEX_HASH_BUCKET_DEFAULT);
 
-          nodeFileScanTaskMap.forEach(
-              (treeNode1, nodeFileScanTask1) -> {
-                if (!treeNode1.equals(treeNode)
-                    && (treeNode1.isSonOf(treeNode) || treeNode.isSonOf(treeNode1))) {
-                  List<MixedFileScanTask> deletes =
-                      nodeFileScanTask1.mixedEquityDeletes().stream()
-                          .filter(file -> file.file().node().equals(treeNode1))
-                          .collect(Collectors.toList());
+    Map<DataTreeNode, NodeFileScanTask> result =
+        FileScanTaskUtil.generateScanTreeNodes(scanBucketCount).stream()
+            .collect(Collectors.toMap(n -> n, NodeFileScanTask::new));
 
-                  nodeFileScanTask.addTasks(deletes);
-                }
-              });
-        });
+    originalNodeFileScanTaskMap.forEach(
+        (treeNode, nodeFileScanTask) ->
+            result.forEach(
+                (treeNode1, nodeFileScanTask1) -> {
+                  if (treeNode1.equals(treeNode)
+                      || treeNode1.isSonOf(treeNode)
+                      || treeNode.isSonOf(treeNode1)) {
+                    result.get(treeNode1).addTasks(nodeFileScanTask.dataTasks());
+                  }
+                }));
 
-    List<NodeFileScanTask> fileScanTaskList = new ArrayList<>();
-    nodeFileScanTaskMap.forEach(
-        (treeNode, nodeFileScanTask) -> {
-          if (!nodeFileScanTask.isDataNode()) {
-            return;
-          }
-          fileScanTaskList.add(nodeFileScanTask);
-        });
-
-    fileScanTasks.put(partition, fileScanTaskList);
+    fileScanTasks.addAll(
+        result.values().stream().filter(NodeFileScanTask::isDataNode).collect(Collectors.toList()));
   }
 
   public StructLikeMap<Collection<MixedFileScanTask>> groupFilesByPartition(

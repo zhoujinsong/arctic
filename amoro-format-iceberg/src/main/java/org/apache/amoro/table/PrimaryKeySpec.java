@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -87,6 +88,12 @@ public class PrimaryKeySpec implements Serializable {
         pkFields.stream()
             .map(field -> schema.findField(field.fieldName()))
             .collect(Collectors.toList()));
+  }
+
+  public Set<Integer> primaryKeyIds() {
+    return pkFields.stream()
+        .map(field -> schema.findField(field.fieldName()).fieldId())
+        .collect(Collectors.toSet());
   }
 
   @Override

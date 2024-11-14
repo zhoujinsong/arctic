@@ -19,8 +19,8 @@
 package org.apache.amoro.spark.test.utils;
 
 import org.apache.amoro.data.ChangeAction;
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericKeyedDataReader;
 import org.apache.amoro.hive.io.reader.AdaptHiveGenericUnkeyedDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericReplaceDataReader;
 import org.apache.amoro.hive.table.SupportHive;
 import org.apache.amoro.io.MixedDataTestHelpers;
 import org.apache.amoro.io.reader.GenericUnkeyedDataReader;
@@ -208,8 +208,6 @@ public class TestTableUtil {
                                   baseDeleteFiles.addAll(fileTask.deletes());
                                 });
                         t.insertTasks().forEach(fileTask -> insertFiles.add(fileTask.file()));
-                        t.mixedEquityDeletes()
-                            .forEach(fileTask -> deleteFiles.add(fileTask.file()));
                       }));
       return new TableFiles(baseDataFiles, baseDeleteFiles, insertFiles, deleteFiles);
     } catch (IOException e) {
@@ -284,15 +282,18 @@ public class TestTableUtil {
   }
 
   public static List<Record> readKeyedTable(KeyedTable keyedTable, Expression expression) {
-    AdaptHiveGenericKeyedDataReader reader =
-        new AdaptHiveGenericKeyedDataReader(
+    MixedHiveGenericReplaceDataReader reader =
+        new MixedHiveGenericReplaceDataReader(
             keyedTable.io(),
             keyedTable.schema(),
             keyedTable.schema(),
             keyedTable.primaryKeySpec(),
             null,
             true,
-            IdentityPartitionConverters::convertConstant);
+            IdentityPartitionConverters::convertConstant,
+            null,
+            false,
+            null);
     List<Record> result = Lists.newArrayList();
     try (CloseableIterable<CombinedScanTask> combinedScanTasks =
         keyedTable.newScan().filter(expression).planTasks()) {

@@ -199,13 +199,6 @@ public class MixedSparkTable
   }
 
   @Override
-  public boolean appendAsUpsert() {
-    return mixedTable.isKeyedTable()
-        && Boolean.parseBoolean(
-            mixedTable.properties().getOrDefault(TableProperties.UPSERT_ENABLED, "false"));
-  }
-
-  @Override
   public StructType partitionSchema() {
     return SparkSchemaUtil.convert(new Schema(table().spec().partitionType().fields()));
   }

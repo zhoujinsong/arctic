@@ -162,7 +162,9 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
         return false;
       }
       PrimaryKeyedFile file = (PrimaryKeyedFile) dataFile;
-      return file.type() == DataFileType.INSERT_FILE || file.type() == DataFileType.EQ_DELETE_FILE;
+      return file.type() == DataFileType.INSERT_FILE
+          || file.type() == DataFileType.EQ_DELETE_FILE
+          || file.type() == DataFileType.CHANGE_FILE;
     }
 
     @Override
@@ -170,8 +172,9 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
       PrimaryKeyedFile file = (PrimaryKeyedFile) dataFile;
       if (file.type() == DataFileType.BASE_FILE) {
         return dataFile.fileSizeInBytes() <= fragmentSize;
-      } else if (file.type() == DataFileType.INSERT_FILE) {
-        // for keyed table, we treat all insert files as fragment files
+      } else if (file.type() == DataFileType.INSERT_FILE
+          || file.type() == DataFileType.CHANGE_FILE) {
+        // for keyed table, we treat all insert files and change files as fragment files
         return true;
       } else {
         throw new IllegalStateException("unexpected file type " + file.type() + " of " + file);

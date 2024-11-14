@@ -36,11 +36,4 @@ public interface SupportsRowLevelOperator extends Table {
   SupportsExtendIdentColumns newUpsertScanBuilder(CaseInsensitiveStringMap options);
 
   boolean requireAdditionIdentifierColumns();
-
-  /**
-   * will table handle insert as upsert
-   *
-   * @return true if table require insert as upsert
-   */
-  boolean appendAsUpsert();
 }

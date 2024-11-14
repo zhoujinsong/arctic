@@ -18,12 +18,16 @@
 
 package org.apache.amoro.utils;
 
+import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.base.MoreObjects;
+import org.apache.amoro.shade.guava32.com.google.common.base.Preconditions;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Iterables;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /** Utility class for working with file scan tasks. */
 public class FileScanTaskUtil {
@@ -55,5 +59,14 @@ public class FileScanTaskUtil {
                         .add("\n\trecordCount", primaryKeyedFile.recordCount())
                         .toString())
             .collect(Collectors.toList()));
+  }
+
+  public static List<DataTreeNode> generateScanTreeNodes(int bucketSize) {
+    Preconditions.checkArgument(
+        bucketSize > 0 && (bucketSize & (bucketSize - 1)) == 0, "Bucket size must be a power of 2");
+    int mask = bucketSize - 1;
+    return IntStream.range(0, bucketSize)
+        .mapToObj(i -> DataTreeNode.of(mask, i))
+        .collect(Collectors.toList());
   }
 }

@@ -199,12 +199,13 @@ public class SparkInternalRowCastWrapper extends GenericInternalRow {
     return super.values();
   }
 
-  public InternalRow setFileOffset(Long fileOffset) {
+  public InternalRow addMetadataColumns(Long fileOffset) {
     List<DataType> dataTypeList =
         Arrays.stream(schema.fields()).map(StructField::dataType).collect(Collectors.toList());
-    List<Object> objectSeq = new ArrayList<>(dataTypeList.size() + 1);
+    List<Object> objectSeq = new ArrayList<>(dataTypeList.size() + 2);
     row.toSeq(schema).toStream().foreach(objectSeq::add);
     objectSeq.add(fileOffset);
+    objectSeq.add(UTF8String.fromString(changeAction.name()));
     return new GenericInternalRow(objectSeq.toArray());
   }
 }

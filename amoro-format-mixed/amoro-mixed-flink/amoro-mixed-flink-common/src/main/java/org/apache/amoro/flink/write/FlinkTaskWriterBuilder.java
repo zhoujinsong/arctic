@@ -257,12 +257,6 @@ public class FlinkTaskWriterBuilder implements TaskWriterBuilder<RowData> {
                 null,
                 null,
                 null);
-    boolean upsert =
-        table.isKeyedTable()
-            && PropertyUtil.propertyAsBoolean(
-                table.properties(),
-                TableProperties.UPSERT_ENABLED,
-                TableProperties.UPSERT_ENABLED_DEFAULT);
     return new FlinkChangeTaskWriter(
         fileFormat,
         appenderFactory,
@@ -273,8 +267,7 @@ public class FlinkTaskWriterBuilder implements TaskWriterBuilder<RowData> {
         selectSchema,
         flinkSchema,
         keyedTable.spec(),
-        keyedTable.primaryKeySpec(),
-        upsert);
+        keyedTable.primaryKeySpec());
   }
 
   @Override

@@ -387,13 +387,6 @@ public class FlinkSink {
             mixedTable.properties(),
             TableProperties.CHANGE_FILE_INDEX_HASH_BUCKET,
             TableProperties.CHANGE_FILE_INDEX_HASH_BUCKET_DEFAULT);
-
-    boolean upsert =
-        mixedTable.isKeyedTable()
-            && PropertyUtil.propertyAsBoolean(
-                mixedTable.properties(),
-                TableProperties.UPSERT_ENABLED,
-                TableProperties.UPSERT_ENABLED_DEFAULT);
     boolean submitEmptySnapshot =
         PropertyUtil.propertyAsBoolean(
             mixedTable.properties(),
@@ -405,7 +398,6 @@ public class FlinkSink {
         createTaskWriterFactory(mixedTable, overwrite, flinkSchema),
         minFileSplitCount,
         tableLoader,
-        upsert,
         submitEmptySnapshot);
   }
 

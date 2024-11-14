@@ -90,11 +90,6 @@ public class KeyedConnectorSplitManager implements ConnectorSplitManager {
                         .getEnforcedPredicate()
                         .intersect(icebergTableHandle.getUnenforcedPredicate())));
 
-    if (MixedFormatSessionProperties.enableSplitTaskByDeleteRatio(session)) {
-      tableScan.enableSplitTaskByDeleteRatio(
-          MixedFormatSessionProperties.splitTaskByDeleteRatio(session));
-    }
-
     ClassLoader pluginClassloader = keyedTable.getClass().getClassLoader();
 
     try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(pluginClassloader)) {

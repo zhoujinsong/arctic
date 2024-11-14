@@ -29,7 +29,7 @@ import org.apache.spark.sql.execution.dynamicpruning.RowLevelCommandDynamicPruni
 import org.apache.amoro.spark.sql.catalyst.analysis
 import org.apache.amoro.spark.sql.catalyst.analysis.{MixedFormatAlignRowLevelCommandAssignments, QueryWithConstraintCheck}
 import org.apache.amoro.spark.sql.catalyst.analysis.{QueryWithConstraintCheck, ResolveMergeIntoMixedFormatTableReferences, ResolveMixedFormatCommand, RewriteMixedFormatCommand, RewriteMixedFormatMergeIntoTable}
-import org.apache.amoro.spark.sql.catalyst.optimize.{OptimizeWriteRule, RewriteAppendMixedFormatTable, RewriteDeleteFromMixedFormatTable, RewriteUpdateMixedFormatTable}
+import org.apache.amoro.spark.sql.catalyst.optimize.{OptimizeWriteRule, RewriteDeleteFromMixedFormatTable, RewriteUpdateMixedFormatTable}
 import org.apache.amoro.spark.sql.catalyst.parser.MixedFormatSqlExtensionsParser
 import org.apache.amoro.spark.sql.execution
 
@@ -49,7 +49,6 @@ class MixedFormatSparkExtensions extends (SparkSessionExtensions => Unit) {
 
     // mixed-format optimizer rules
     extensions.injectPostHocResolutionRule { spark => QueryWithConstraintCheck(spark) }
-    extensions.injectOptimizerRule { spark => RewriteAppendMixedFormatTable(spark) }
     extensions.injectOptimizerRule { spark => RewriteDeleteFromMixedFormatTable(spark) }
     extensions.injectOptimizerRule { spark => RewriteUpdateMixedFormatTable(spark) }
 

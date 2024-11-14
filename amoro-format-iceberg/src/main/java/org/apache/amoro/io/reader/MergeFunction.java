@@ -16,24 +16,8 @@
  * limitations under the License.
  */
 
-package org.apache.amoro.spark.table;
+package org.apache.amoro.io.reader;
 
-import org.apache.spark.sql.connector.catalog.Table;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-
-/**
- * A mix-in interface of {@link org.apache.spark.sql.connector.catalog.Table}, to indicate that can
- * handle update or delete by upsert.
- */
-public interface SupportsRowLevelOperator extends Table {
-
-  /**
-   * Returns support extend columns scan builder
-   *
-   * @param options
-   * @return
-   */
-  SupportsExtendIdentColumns newUpsertScanBuilder(CaseInsensitiveStringMap options);
-
-  boolean requireAdditionIdentifierColumns();
+public interface MergeFunction<T> {
+  T merge(T record, T update);
 }
