@@ -16,8 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.amoro.io.reader;
+package org.apache.amoro.hive.io.reader;
 
+import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
@@ -26,7 +27,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.data.parquet.AdaptHiveGenericParquetReaders;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.types.Type;
@@ -34,16 +35,16 @@ import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
+public class MixedHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedDataReader<Record> {
 
-  public GenericMergeDataReader(
+  public MixedHiveGenericUnkeyedDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
@@ -53,7 +54,6 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
         fileIO,
         tableSchema,
         projectedSchema,
-        primaryKeySpec,
         nameMapping,
         caseSensitive,
         convertConstant,
@@ -61,11 +61,51 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
         structLikeCollections);
   }
 
+  public MixedHiveGenericUnkeyedDataReader(
+      AuthenticatedFileIO fileIO,
+      Schema tableSchema,
+      Schema projectedSchema,
+      String nameMapping,
+      boolean caseSensitive,
+      BiFunction<Type, Object, Object> convertConstant,
+      boolean reuseContainer) {
+    super(
+        fileIO,
+        tableSchema,
+        projectedSchema,
+        nameMapping,
+        caseSensitive,
+        convertConstant,
+        reuseContainer);
+  }
+
+  public MixedHiveGenericUnkeyedDataReader(
+      AuthenticatedFileIO fileIO,
+      Schema tableSchema,
+      Schema projectedSchema,
+      PrimaryKeySpec primaryKeySpec,
+      String nameMapping,
+      boolean caseSensitive,
+      BiFunction<Type, Object, Object> convertConstant,
+      Set<DataTreeNode> sourceNodes,
+      boolean reuseContainer) {
+    super(
+        fileIO,
+        tableSchema,
+        projectedSchema,
+        primaryKeySpec,
+        nameMapping,
+        caseSensitive,
+        convertConstant,
+        sourceNodes,
+        reuseContainer);
+  }
+
   @Override
   protected Function<MessageType, ParquetValueReader<?>> getParquetReaderFunction(
       Schema projectedSchema, Map<Integer, ?> idToConstant) {
     return fileSchema ->
-        GenericParquetReaders.buildReader(projectedSchema, fileSchema, idToConstant);
+        AdaptHiveGenericParquetReaders.buildReader(projectedSchema, fileSchema, idToConstant);
   }
 
   @Override
@@ -80,28 +120,5 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
       final InternalRecordWrapper wrapper = new InternalRecordWrapper(schema.asStruct());
       return wrapper::copyFor;
     };
-  }
-
-  @Override
-  protected MergeFunction<Record> mergeFunction() {
-    return PartialUpdateMergeFunction.getInstance();
-  }
-
-  public static class PartialUpdateMergeFunction implements MergeFunction<Record> {
-    private static final PartialUpdateMergeFunction INSTANCE = new PartialUpdateMergeFunction();
-
-    public static PartialUpdateMergeFunction getInstance() {
-      return INSTANCE;
-    }
-
-    @Override
-    public Record merge(Record record, Record update) {
-      for (int i = 0; i < record.size(); i++) {
-        if (update.get(i) != null) {
-          record.set(i, update.get(i));
-        }
-      }
-      return record;
-    }
   }
 }

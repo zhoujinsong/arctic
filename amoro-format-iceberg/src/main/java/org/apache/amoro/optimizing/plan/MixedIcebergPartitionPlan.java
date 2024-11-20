@@ -23,6 +23,7 @@ import org.apache.amoro.config.OptimizingConfig;
 import org.apache.amoro.data.DataFileType;
 import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.data.PrimaryKeyedFile;
+import org.apache.amoro.optimizing.MixedIcebergOptimizingDataReader;
 import org.apache.amoro.optimizing.MixedIcebergRewriteExecutorFactory;
 import org.apache.amoro.optimizing.OptimizingInputProperties;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
@@ -305,13 +306,16 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
         subTree.collectRewriteDataFiles(rewriteDataFiles);
         subTree.collectRewritePosDataFiles(rewritePosDataFiles);
         // A subTree will also be generated when there is no file, filter it
-        if (rewriteDataFiles.size() == 0 && rewritePosDataFiles.size() == 0) {
+        if (rewriteDataFiles.isEmpty() && rewritePosDataFiles.isEmpty()) {
           continue;
         }
         rewriteDataFiles.forEach((f, deletes) -> deleteFiles.addAll(deletes));
         rewritePosDataFiles.forEach((f, deletes) -> deleteFiles.addAll(deletes));
-        result.add(
-            new SplitTask(rewriteDataFiles.keySet(), rewritePosDataFiles.keySet(), deleteFiles));
+        SplitTask splitTask =
+            new SplitTask(rewriteDataFiles.keySet(), rewritePosDataFiles.keySet(), deleteFiles);
+        splitTask.addOption(
+            MixedIcebergOptimizingDataReader.NODE_ID, String.valueOf(subTree.node.getId()));
+        result.add(splitTask);
       }
       return result;
     }

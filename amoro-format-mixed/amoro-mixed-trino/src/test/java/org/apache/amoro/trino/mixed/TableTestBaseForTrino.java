@@ -222,7 +222,6 @@ public abstract class TableTestBaseForTrino extends AbstractTestQueryFramework {
             null,
             true,
             IdentityPartitionConverters::convertConstant,
-            null,
             false,
             null);
     List<Record> result = Lists.newArrayList();

@@ -54,7 +54,6 @@ public class SparkReplaceDataReader extends AbstractMixedHiveReplaceDataReader<I
         nameMapping,
         caseSensitive,
         MixedFormatSparkUtils::convertConstant,
-        null,
         true,
         null);
   }
@@ -76,7 +75,7 @@ public class SparkReplaceDataReader extends AbstractMixedHiveReplaceDataReader<I
     return schema -> {
       final StructType structType = SparkSchemaUtil.convert(schema);
       SparkInternalRowWrapper wrapper = new SparkInternalRowWrapper(structType);
-      return row -> wrapper.wrap(row);
+      return wrapper::wrap;
     };
   }
 }

@@ -331,6 +331,7 @@ public class KeyedTableFileScanHelper implements TableFileScanHelper {
               .add(file);
           break;
         case CHANGE_FILE:
+          // Change files contain both equality delete records and insert records
           equalityDeleteFiles
               .computeIfAbsent(partition, key -> Maps.newHashMap())
               .computeIfAbsent(node, key -> Sets.newHashSet())
@@ -341,7 +342,7 @@ public class KeyedTableFileScanHelper implements TableFileScanHelper {
               .add(file);
           break;
         default:
-          throw new IllegalStateException("illegal file type in change store " + type);
+          throw new IllegalStateException("Illegal file type in change store " + type);
       }
     }
 

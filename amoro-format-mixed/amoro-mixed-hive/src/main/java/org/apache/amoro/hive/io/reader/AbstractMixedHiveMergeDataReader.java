@@ -19,7 +19,7 @@
 package org.apache.amoro.hive.io.reader;
 
 import org.apache.amoro.io.AuthenticatedFileIO;
-import org.apache.amoro.io.reader.AbstractReplaceDataReader;
+import org.apache.amoro.io.reader.AbstractMergeDataReader;
 import org.apache.amoro.io.reader.MixedDeleteFilter;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Sets;
@@ -35,10 +35,9 @@ import org.apache.iceberg.types.Type;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-/** AdaptHive can read all Data. */
-public abstract class AbstractMixedHiveReplaceDataReader<T> extends AbstractReplaceDataReader<T> {
+public abstract class AbstractMixedHiveMergeDataReader<T> extends AbstractMergeDataReader<T> {
 
-  public AbstractMixedHiveReplaceDataReader(
+  public AbstractMixedHiveMergeDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,

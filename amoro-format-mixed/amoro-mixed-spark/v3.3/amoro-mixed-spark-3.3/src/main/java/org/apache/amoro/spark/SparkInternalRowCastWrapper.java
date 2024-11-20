@@ -41,8 +41,7 @@ import java.util.stream.Collectors;
 public class SparkInternalRowCastWrapper extends GenericInternalRow {
   private final InternalRow row;
   private final StructType schema;
-  private ChangeAction changeAction = ChangeAction.INSERT;
-  private List<DataType> dataTypeList;
+  private final ChangeAction changeAction;
 
   public SparkInternalRowCastWrapper(
       InternalRow row, ChangeAction changeAction, StructType schema) {
@@ -86,7 +85,7 @@ public class SparkInternalRowCastWrapper extends GenericInternalRow {
 
   @Override
   public boolean isNullAt(int ordinal) {
-    dataTypeList =
+    List<DataType> dataTypeList =
         Arrays.stream(schema.fields()).map(StructField::dataType).collect(Collectors.toList());
     return row.get(ordinal, dataTypeList.get(ordinal)) == null;
   }

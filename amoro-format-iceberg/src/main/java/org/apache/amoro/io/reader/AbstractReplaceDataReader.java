@@ -19,12 +19,12 @@
 package org.apache.amoro.io.reader;
 
 import org.apache.amoro.data.ChangeAction;
-import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
 import org.apache.amoro.table.MetadataColumns;
 import org.apache.amoro.table.PrimaryKeySpec;
+import org.apache.amoro.utils.NodeFilter;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
@@ -34,7 +34,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 
-import java.util.Set;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -52,7 +52,6 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
       boolean reuseContainer,
       StructLikeCollections structLikeCollections) {
     super(
@@ -63,66 +62,70 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
         nameMapping,
         caseSensitive,
         convertConstant,
-        sourceNodes,
         reuseContainer,
         structLikeCollections);
   }
 
   @Override
   public CloseableIterator<T> readData(KeyedTableScanTask keyedTableScanTask) {
-    MixedDeleteFilter<T> mixedDeleteFilter =
-        createMixedDeleteFilter(
-            keyedTableScanTask,
-            tableSchema,
-            projectedSchema,
-            primaryKeySpec,
-            sourceNodes,
-            structLikeCollections);
-    Schema requiredSchema = mixedDeleteFilter.requiredSchema();
-
-    CloseableIterable<T> dataIterable =
-        mixedDeleteFilter.filter(readScanTask(keyedTableScanTask, requiredSchema));
-    return dataIterable.iterator();
-  }
-
-  @Override
-  public CloseableIterator<T> readDeletedData(KeyedTableScanTask keyedTableScanTask) {
-    boolean hasDeleteFile =
-        !keyedTableScanTask.deleteTasks().isEmpty()
-            || keyedTableScanTask.dataTasks().stream()
-                .anyMatch(mixedFileScanTask -> !mixedFileScanTask.deletes().isEmpty());
-    if (hasDeleteFile) {
+    if (hasDeleteData(keyedTableScanTask)) {
       MixedDeleteFilter<T> mixedDeleteFilter =
           createMixedDeleteFilter(
               keyedTableScanTask,
               tableSchema,
               projectedSchema,
               primaryKeySpec,
-              sourceNodes,
+              structLikeCollections);
+      Schema requiredSchema = mixedDeleteFilter.requiredSchema();
+
+      CloseableIterable<T> dataIterable =
+          mixedDeleteFilter.filter(readDataTask(keyedTableScanTask, requiredSchema));
+      return dataIterable.iterator();
+    } else {
+      return readDataTask(keyedTableScanTask, projectedSchema).iterator();
+    }
+  }
+
+  @Override
+  public CloseableIterator<T> readDeletedData(KeyedTableScanTask keyedTableScanTask) {
+    if (hasDeleteData(keyedTableScanTask)) {
+      MixedDeleteFilter<T> mixedDeleteFilter =
+          createMixedDeleteFilter(
+              keyedTableScanTask,
+              tableSchema,
+              projectedSchema,
+              primaryKeySpec,
               structLikeCollections);
 
       Schema requiredSchema = mixedDeleteFilter.requiredSchema();
 
       CloseableIterable<T> dataIterable =
-          mixedDeleteFilter.filterNegate(readScanTask(keyedTableScanTask, requiredSchema));
+          mixedDeleteFilter.filterNegate(readDataTask(keyedTableScanTask, requiredSchema));
       return dataIterable.iterator();
     } else {
       return CloseableIterator.empty();
     }
   }
 
-  private CloseableIterable<T> readScanTask(KeyedTableScanTask scanTask, Schema projectedSchema) {
+  private CloseableIterable<T> readDataTask(KeyedTableScanTask scanTask, Schema projectedSchema) {
+    Optional<NodeFilter<T>> baseNodeFilter = createNodeFilter(scanTask, projectedSchema);
     CloseableIterable<T> baseRecords =
         CloseableIterable.concat(
             CloseableIterable.transform(
                 CloseableIterable.withNoopClose(scanTask.baseTasks()),
                 fileScanTask -> readFile(fileScanTask, projectedSchema)));
+    if (baseNodeFilter.isPresent()) {
+      baseRecords = baseNodeFilter.get().filter(baseRecords);
+    }
 
     CloseableIterable<T> insertRecords =
         CloseableIterable.concat(
             CloseableIterable.transform(
                 CloseableIterable.withNoopClose(scanTask.insertTasks()),
                 fileScanTask -> readFile(fileScanTask, projectedSchema)));
+    if (baseNodeFilter.isPresent()) {
+      insertRecords = baseNodeFilter.get().filter(insertRecords);
+    }
 
     Schema changeProjectedSchema =
         TypeUtil.join(projectedSchema, new Schema(MetadataColumns.CHANGE_ACTION_FIELD));
@@ -134,6 +137,7 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
     Accessor<StructLike> changeActionAccessor =
         changeProjectedSchema.accessorForField(MetadataColumns.CHANGE_ACTION_ID);
     Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(changeProjectedSchema);
+    Optional<NodeFilter<T>> changeNodeFilter = createNodeFilter(scanTask, changeProjectedSchema);
     changeRecords =
         CloseableIterable.filter(
             changeRecords,
@@ -144,6 +148,10 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
               return changeAction.equals(ChangeAction.INSERT)
                   || changeAction.equals(ChangeAction.UPDATE_AFTER);
             });
+    if (changeNodeFilter.isPresent()) {
+      changeRecords = changeNodeFilter.get().filter(changeRecords);
+    }
+
     return CloseableIterable.concat(Lists.newArrayList(baseRecords, insertRecords, changeRecords));
   }
 }

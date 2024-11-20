@@ -162,23 +162,25 @@ public class BasicKeyedTableScan implements KeyedTableScan {
             TableProperties.BASE_FILE_INDEX_HASH_BUCKET,
             TableProperties.BASE_FILE_INDEX_HASH_BUCKET_DEFAULT);
 
-    Map<DataTreeNode, NodeFileScanTask> result =
+    Map<DataTreeNode, NodeFileScanTask> nodeScanTaskMap =
         FileScanTaskUtil.generateScanTreeNodes(scanBucketCount).stream()
             .collect(Collectors.toMap(n -> n, NodeFileScanTask::new));
 
     originalNodeFileScanTaskMap.forEach(
         (treeNode, nodeFileScanTask) ->
-            result.forEach(
+            nodeScanTaskMap.forEach(
                 (treeNode1, nodeFileScanTask1) -> {
                   if (treeNode1.equals(treeNode)
                       || treeNode1.isSonOf(treeNode)
                       || treeNode.isSonOf(treeNode1)) {
-                    result.get(treeNode1).addTasks(nodeFileScanTask.dataTasks());
+                    nodeScanTaskMap.get(treeNode1).addTasks(nodeFileScanTask.dataTasks());
                   }
                 }));
 
     fileScanTasks.addAll(
-        result.values().stream().filter(NodeFileScanTask::isDataNode).collect(Collectors.toList()));
+        nodeScanTaskMap.values().stream()
+            .filter(NodeFileScanTask::isDataNode)
+            .collect(Collectors.toList()));
   }
 
   public StructLikeMap<Collection<MixedFileScanTask>> groupFilesByPartition(

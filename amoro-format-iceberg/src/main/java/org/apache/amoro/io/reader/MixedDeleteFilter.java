@@ -112,28 +112,9 @@ public abstract class MixedDeleteFilter<T> {
       KeyedTableScanTask keyedTableScanTask,
       Schema tableSchema,
       Schema requestedSchema,
-      PrimaryKeySpec primaryKeySpec) {
-    this(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, null);
-  }
-
-  protected MixedDeleteFilter(
-      KeyedTableScanTask keyedTableScanTask,
-      Schema tableSchema,
-      Schema requestedSchema,
       PrimaryKeySpec primaryKeySpec,
       Set<DataTreeNode> sourceNodes,
       StructLikeCollections structLikeCollections) {
-    this(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, sourceNodes);
-    this.structLikeCollections = structLikeCollections;
-  }
-
-  protected MixedDeleteFilter(
-      KeyedTableScanTask keyedTableScanTask,
-      Schema tableSchema,
-      Schema requestedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      Set<DataTreeNode> sourceNodes) {
-
     this.eqDeletes =
         keyedTableScanTask.deleteTasks().stream()
             .map(MixedFileScanTask::file)
@@ -179,6 +160,9 @@ public abstract class MixedDeleteFilter<T> {
         requiredSchema.accessorForField(org.apache.iceberg.MetadataColumns.ROW_POSITION.fieldId());
     this.filePathAccessor =
         requiredSchema.accessorForField(org.apache.iceberg.MetadataColumns.FILE_PATH.fieldId());
+    if (structLikeCollections != null) {
+      this.structLikeCollections = structLikeCollections;
+    }
   }
 
   public Schema requiredSchema() {
@@ -208,10 +192,13 @@ public abstract class MixedDeleteFilter<T> {
         apply(apply(records, applyPosDeletes().negate()), applyEqDeletes().negate()), eqPredicate);
   }
 
+  public Predicate<T> deletedPredicate() {
+    return applyEqDeletes().or(applyPosDeletes());
+  }
+
   /** @return The data in equity delete file */
   public CloseableIterable<T> filterNegate(CloseableIterable<T> records) {
-    return new CloseableIterableWrapper<>(
-        apply(records, applyEqDeletes().or(applyPosDeletes())), eqPredicate);
+    return new CloseableIterableWrapper<>(apply(records, deletedPredicate()), eqPredicate);
   }
 
   public void setCurrentDataPath(String currentDataPath) {

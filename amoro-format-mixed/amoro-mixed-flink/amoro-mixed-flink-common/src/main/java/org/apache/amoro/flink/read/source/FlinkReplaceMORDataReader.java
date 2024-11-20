@@ -57,7 +57,6 @@ public class FlinkReplaceMORDataReader extends AbstractMixedHiveReplaceDataReade
         nameMapping,
         caseSensitive,
         convertConstant,
-        null,
         reuseContainer,
         null);
   }

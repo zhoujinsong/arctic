@@ -223,7 +223,6 @@ public class FlinkTestBase extends TableTestBase {
             null,
             true,
             IdentityPartitionConverters::convertConstant,
-            null,
             false,
             null);
     ImmutableList.Builder<Record> builder = ImmutableList.builder();

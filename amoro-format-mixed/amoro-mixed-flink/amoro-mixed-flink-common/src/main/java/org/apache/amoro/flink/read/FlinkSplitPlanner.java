@@ -209,7 +209,8 @@ public class FlinkSplitPlanner {
         while (tasksIterator.hasNext()) {
           count++;
           MixedFileScanTask fileScanTask = (MixedFileScanTask) tasksIterator.next();
-          if (fileScanTask.file().type().equals(DataFileType.INSERT_FILE)) {
+          if (fileScanTask.file().type().equals(DataFileType.INSERT_FILE)
+              || fileScanTask.file().type().equals(DataFileType.CHANGE_FILE)) {
             taskMap(Collections.singleton(fileScanTask), true, transactionTasks);
           } else if (fileScanTask.file().type().equals(DataFileType.EQ_DELETE_FILE)) {
             taskMap(Collections.singleton(fileScanTask), false, transactionTasks);

@@ -19,8 +19,8 @@
 package org.apache.amoro.spark.test.utils;
 
 import org.apache.amoro.data.ChangeAction;
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericUnkeyedDataReader;
 import org.apache.amoro.hive.io.reader.MixedHiveGenericReplaceDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericUnkeyedDataReader;
 import org.apache.amoro.hive.table.SupportHive;
 import org.apache.amoro.io.MixedDataTestHelpers;
 import org.apache.amoro.io.reader.GenericUnkeyedDataReader;
@@ -248,8 +248,8 @@ public class TestTableUtil {
   }
 
   public static List<Record> unkeyedTableRecords(UnkeyedTable table, Expression expression) {
-    AdaptHiveGenericUnkeyedDataReader reader =
-        new AdaptHiveGenericUnkeyedDataReader(
+    MixedHiveGenericUnkeyedDataReader reader =
+        new MixedHiveGenericUnkeyedDataReader(
             table.io(),
             table.schema(),
             table.schema(),
@@ -291,7 +291,6 @@ public class TestTableUtil {
             null,
             true,
             IdentityPartitionConverters::convertConstant,
-            null,
             false,
             null);
     List<Record> result = Lists.newArrayList();

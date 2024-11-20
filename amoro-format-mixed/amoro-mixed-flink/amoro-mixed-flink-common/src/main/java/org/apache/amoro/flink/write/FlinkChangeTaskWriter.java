@@ -27,6 +27,7 @@ import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.utils.JoinedRowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
@@ -82,7 +83,8 @@ public class FlinkChangeTaskWriter extends ChangeTaskWriter<RowData> {
 
   @Override
   protected RowData appendMetaColumns(RowData data, Long fileOffset) {
-    return new JoinedRowData(data, GenericRowData.of(fileOffset, action(data).name()));
+    return new JoinedRowData(
+        data, GenericRowData.of(fileOffset, StringData.fromString(action(data).name())));
   }
 
   @Override

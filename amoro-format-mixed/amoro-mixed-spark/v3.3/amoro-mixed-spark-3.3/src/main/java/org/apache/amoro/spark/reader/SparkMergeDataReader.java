@@ -18,9 +18,11 @@
 
 package org.apache.amoro.spark.reader;
 
-import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveMergeDataReader;
 import org.apache.amoro.io.AuthenticatedFileIO;
+import org.apache.amoro.io.reader.MergeFunction;
 import org.apache.amoro.spark.SparkInternalRowWrapper;
+import org.apache.amoro.spark.mixed.PartialUpdateMergeFunction;
 import org.apache.amoro.spark.util.MixedFormatSparkUtils;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.iceberg.Schema;
@@ -37,9 +39,9 @@ import org.apache.spark.sql.types.StructType;
 import java.util.Map;
 import java.util.function.Function;
 
-public class SparkReplaceDataReader extends AbstractMixedHiveReplaceDataReader<InternalRow> {
+public class SparkMergeDataReader extends AbstractMixedHiveMergeDataReader<InternalRow> {
 
-  public SparkReplaceDataReader(
+  public SparkMergeDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
@@ -75,7 +77,12 @@ public class SparkReplaceDataReader extends AbstractMixedHiveReplaceDataReader<I
     return schema -> {
       final StructType structType = SparkSchemaUtil.convert(schema);
       SparkInternalRowWrapper wrapper = new SparkInternalRowWrapper(structType);
-      return row -> wrapper.wrap(row);
+      return wrapper::wrap;
     };
+  }
+
+  @Override
+  protected MergeFunction<InternalRow> mergeFunction() {
+    return PartialUpdateMergeFunction.getInstance();
   }
 }

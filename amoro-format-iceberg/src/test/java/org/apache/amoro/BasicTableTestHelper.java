@@ -187,8 +187,8 @@ public class BasicTableTestHelper implements TableTestHelper {
         primaryKeySpec.primaryKeyExisted(), partitionSpec.isPartitioned());
   }
 
-  protected static Map<String, String> buildTableFormat(String fileFormat) {
-    Map<String, String> tableProperties = Maps.newHashMapWithExpectedSize(3);
+  public static Map<String, String> buildTableFormat(String fileFormat) {
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(BASE_FILE_FORMAT, fileFormat);
     tableProperties.put(CHANGE_FILE_FORMAT, fileFormat);
     tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);

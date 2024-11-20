@@ -18,24 +18,28 @@
 
 package org.apache.amoro.optimizing;
 
+import org.apache.amoro.data.DataFileType;
+import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.data.PrimaryKeyedFile;
 import org.apache.amoro.io.reader.AbstractKeyedDataReader;
-import org.apache.amoro.io.reader.GenericKeyedDataReader;
+import org.apache.amoro.io.reader.GenericMergeDataReader;
+import org.apache.amoro.io.reader.GenericReplaceDataReader;
 import org.apache.amoro.scan.BasicMixedFileScanTask;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.scan.NodeFileScanTask;
 import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.MixedTable;
 import org.apache.amoro.table.PrimaryKeySpec;
+import org.apache.amoro.table.TableProperties;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.util.PropertyUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +47,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
+  public static final String NODE_ID = "node-id";
   private final MixedTable table;
 
   private final StructLikeCollections structLikeCollections;
@@ -89,33 +94,57 @@ public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
       primaryKeySpec = keyedTable.primaryKeySpec();
     }
 
-    return new GenericKeyedDataReader(
-        table.io(),
-        table.schema(),
-        requiredSchema,
-        primaryKeySpec,
-        table.properties().get(TableProperties.DEFAULT_NAME_MAPPING),
-        false,
-        IdentityPartitionConverters::convertConstant,
-        null,
-        false,
-        structLikeCollections);
+    String mergeFunction =
+        PropertyUtil.propertyAsString(
+            table.properties(),
+            org.apache.amoro.table.TableProperties.MERGE_FUNCTION,
+            TableProperties.MERGE_FUNCTION_DEFAULT);
+
+    if (TableProperties.MERGE_FUNCTION_REPLACE.equals(mergeFunction)) {
+      return new GenericReplaceDataReader(
+          table.io(),
+          table.schema(),
+          requiredSchema,
+          primaryKeySpec,
+          table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
+          false,
+          IdentityPartitionConverters::convertConstant,
+          false,
+          structLikeCollections);
+    } else if (TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE.equals(mergeFunction)) {
+      return new GenericMergeDataReader(
+          table.io(),
+          table.schema(),
+          requiredSchema,
+          primaryKeySpec,
+          table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
+          false,
+          IdentityPartitionConverters::convertConstant,
+          false,
+          structLikeCollections);
+    } else {
+      throw new IllegalArgumentException("unsupported merge function: " + mergeFunction);
+    }
   }
 
   private NodeFileScanTask nodeFileScanTask(List<PrimaryKeyedFile> dataFiles) {
     List<DeleteFile> posDeleteList = input.positionDeleteForMixed();
 
-    List<PrimaryKeyedFile> equlityDeleteList = input.equalityDeleteForMixed();
-
-    List<PrimaryKeyedFile> allTaskFiles = new ArrayList<>();
-    allTaskFiles.addAll(equlityDeleteList);
-    allTaskFiles.addAll(dataFiles);
+    // Filter change files as they are included in equality delete files too.
+    List<PrimaryKeyedFile> allTaskFiles = dataFiles.stream()
+        .filter(file -> !file.type().equals(DataFileType.CHANGE_FILE))
+        .collect(Collectors.toList());
+    allTaskFiles.addAll(input.equalityDeleteForMixed());
 
     List<MixedFileScanTask> fileScanTasks =
         allTaskFiles.stream()
             .map(file -> new BasicMixedFileScanTask(file, posDeleteList, table.spec()))
             .collect(Collectors.toList());
-    return new NodeFileScanTask(fileScanTasks);
+    String nodeId = input.getOptions().get(NODE_ID);
+    if (nodeId == null) {
+      throw new IllegalArgumentException("Node id is null");
+    }
+    return new NodeFileScanTask(DataTreeNode.ofId(Long.parseLong(nodeId)), fileScanTasks);
   }
 
   private CloseableIterable<Record> wrapIterator2Iterable(CloseableIterator<Record> iterator) {

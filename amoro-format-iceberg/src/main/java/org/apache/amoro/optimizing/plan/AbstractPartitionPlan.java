@@ -282,6 +282,7 @@ public abstract class AbstractPartitionPlan implements PartitionEvaluator {
     private final Set<DataFile> rewriteDataFiles = Sets.newHashSet();
     private final Set<DataFile> rewritePosDataFiles = Sets.newHashSet();
     private final Set<ContentFile<?>> deleteFiles = Sets.newHashSet();
+    private final Map<String, String> options = Maps.newHashMap();
 
     public SplitTask(
         Set<DataFile> rewriteDataFiles,
@@ -304,6 +305,10 @@ public abstract class AbstractPartitionPlan implements PartitionEvaluator {
       return rewritePosDataFiles;
     }
 
+    public void addOption(String key, String value) {
+      options.put(key, value);
+    }
+
     public RewriteStageTask buildTask(OptimizingInputProperties properties) {
       Set<ContentFile<?>> readOnlyDeleteFiles = Sets.newHashSet();
       Set<ContentFile<?>> rewriteDeleteFiles = Sets.newHashSet();
@@ -321,6 +326,7 @@ public abstract class AbstractPartitionPlan implements PartitionEvaluator {
               readOnlyDeleteFiles.toArray(new ContentFile[0]),
               rewriteDeleteFiles.toArray(new ContentFile[0]),
               tableObject);
+      input.getOptions().putAll(options);
       PartitionSpec spec =
           MixedTableUtil.getMixedTablePartitionSpecById(tableObject, partition.first());
       String partitionPath = spec.partitionToPath(partition.second());

@@ -128,7 +128,7 @@ public class OptimizerExecutor extends AbstractOptimizerOperator {
   public static OptimizingTaskResult executeTask(
       OptimizerConfig config, int threadId, OptimizingTask task, Logger logger) {
     long startTime = System.currentTimeMillis();
-    TableOptimizing.OptimizingInput input = null;
+    TableOptimizing.OptimizingInput input;
     try {
       OptimizingInputProperties properties = OptimizingInputProperties.parse(task.getProperties());
       input = SerializationUtil.simpleDeserialize(task.getTaskInput());

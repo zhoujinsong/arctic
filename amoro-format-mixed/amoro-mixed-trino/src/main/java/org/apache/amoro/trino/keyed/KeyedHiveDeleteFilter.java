@@ -22,7 +22,7 @@ import static io.trino.plugin.iceberg.TypeConverter.toIcebergType;
 import static org.apache.amoro.shade.guava32.com.google.common.collect.ImmutableList.toImmutableList;
 
 import io.trino.plugin.iceberg.IcebergColumnHandle;
-import org.apache.amoro.hive.io.reader.AdaptHiveMixedDeleteFilter;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveDeleteFilter;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.trino.delete.TrinoRow;
@@ -36,11 +36,11 @@ import java.util.List;
 import java.util.Optional;
 
 /** KeyedDeleteFilter is used to do MOR for Keyed Table */
-public class KeyedDeleteFilter extends AdaptHiveMixedDeleteFilter<TrinoRow> {
+public class KeyedHiveDeleteFilter extends AbstractMixedHiveDeleteFilter<TrinoRow> {
 
   private final FileIO fileIO;
 
-  protected KeyedDeleteFilter(
+  protected KeyedHiveDeleteFilter(
       KeyedTableScanTask keyedTableScanTask,
       Schema tableSchema,
       List<IcebergColumnHandle> requestedSchema,
@@ -50,7 +50,9 @@ public class KeyedDeleteFilter extends AdaptHiveMixedDeleteFilter<TrinoRow> {
         keyedTableScanTask,
         tableSchema,
         filterSchema(tableSchema, requestedSchema),
-        primaryKeySpec);
+        primaryKeySpec,
+        null,
+        null);
     this.fileIO = fileIO;
   }
 

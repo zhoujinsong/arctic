@@ -18,7 +18,6 @@
 
 package org.apache.amoro.io.reader;
 
-import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.data.PrimaryKeyedFile;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.scan.KeyedTableScanTask;
@@ -28,6 +27,7 @@ import org.apache.amoro.shade.guava32.com.google.common.base.Preconditions;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
 import org.apache.amoro.table.MetadataColumns;
 import org.apache.amoro.table.PrimaryKeySpec;
+import org.apache.amoro.utils.NodeFilter;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -40,12 +40,15 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
- * Abstract implementation of mixed-format table data reader for other merge functions except replace.
+ * Abstract implementation of mixed-format table data reader for other merge functions except
+ * replace.
  *
  * @param <T> to indicate the record data type.
  */
@@ -59,7 +62,6 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
       boolean reuseContainer,
       StructLikeCollections structLikeCollections) {
     super(
@@ -70,43 +72,28 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
         nameMapping,
         caseSensitive,
         convertConstant,
-        sourceNodes,
         reuseContainer,
         structLikeCollections);
   }
 
   @Override
   public CloseableIterator<T> readData(KeyedTableScanTask keyedTableScanTask) {
-    ChangeDataMap<T> changeMap =
-        new ChangeDataMap<>(primaryKeySpec.primaryKeyStruct(), mergeFunction());
-    Schema readSchema = readChangeSchema();
-    CloseableIterable<T> changeRecords =
-        CloseableIterable.concat(
-            CloseableIterable.transform(
-                CloseableIterable.withNoopClose(sortChangeFiles(keyedTableScanTask.changeTasks())),
-                fileScanTask -> readFile(fileScanTask, readSchema)));
-    StructProjection changeProjectRow =
-        StructProjection.create(readSchema, primaryKeySpec.getPkSchema());
-    Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(readSchema);
-    changeRecords.forEach(
-        record -> changeMap.put(changeProjectRow.copyFor(asStructLike.apply(record)), record));
+    ChangeDataMap<T> changeMap = constructChangeMap(keyedTableScanTask);
 
     MixedDeleteFilter<T> deleteFilter =
         createMixedDeleteFilter(
-            new NodeFileScanTask(keyedTableScanTask.baseTasks()),
+            new NodeFileScanTask(
+                ((NodeFileScanTask) keyedTableScanTask).treeNode(), keyedTableScanTask.baseTasks()),
             tableSchema,
             projectedSchema,
             primaryKeySpec,
-            sourceNodes,
             structLikeCollections);
-    Schema projectedSchema = deleteFilter.requiredSchema();
     CloseableIterable<T> baseRecords =
-        CloseableIterable.concat(
-            CloseableIterable.transform(
-                CloseableIterable.withNoopClose(keyedTableScanTask.baseTasks()),
-                fileScanTask -> readFile(fileScanTask, projectedSchema)));
-
+        readBaseData(keyedTableScanTask, deleteFilter.requiredSchema());
     baseRecords = deleteFilter.filter(baseRecords);
+    StructProjection changeProjectRow =
+        StructProjection.create(projectedSchema, primaryKeySpec.getPkSchema());
+    Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(projectedSchema);
     baseRecords =
         CloseableIterable.transform(
             baseRecords,
@@ -119,8 +106,71 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
                 return record;
               }
             });
-    changeRecords = CloseableIterable.withNoopClose(changeMap.values());
+    CloseableIterable<T> changeRecords = CloseableIterable.withNoopClose(changeMap.values());
     return CloseableIterable.concat(Lists.newArrayList(baseRecords, changeRecords)).iterator();
+  }
+
+  @Override
+  public CloseableIterator<T> readDeletedData(KeyedTableScanTask keyedTableScanTask) {
+    ChangeDataMap<T> changeMap = constructChangeMap(keyedTableScanTask);
+    MixedDeleteFilter<T> deleteFilter =
+        createMixedDeleteFilter(
+            new NodeFileScanTask(
+                ((NodeFileScanTask) keyedTableScanTask).treeNode(), keyedTableScanTask.baseTasks()),
+            tableSchema,
+            projectedSchema,
+            primaryKeySpec,
+            structLikeCollections);
+    CloseableIterable<T> baseRecords =
+        readBaseData(keyedTableScanTask, deleteFilter.requiredSchema());
+    Predicate<T> deletedPredicate = deleteFilter.deletedPredicate();
+    StructProjection changeProjectRow =
+        StructProjection.create(projectedSchema, primaryKeySpec.getPkSchema());
+    Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(projectedSchema);
+    CloseableIterable<T> deletedBaseRecords =
+        CloseableIterable.filter(
+            baseRecords,
+            record -> {
+              StructLike key = changeProjectRow.copyFor(asStructLike.apply(record));
+              return deletedPredicate.test(record) || changeMap.containsKey(key);
+            });
+    return deletedBaseRecords.iterator();
+  }
+
+  private ChangeDataMap<T> constructChangeMap(KeyedTableScanTask keyedTableScanTask) {
+    ChangeDataMap<T> changeMap =
+        new ChangeDataMap<>(primaryKeySpec.primaryKeyStruct(), mergeFunction());
+    Schema readSchema = readChangeSchema();
+    CloseableIterable<T> changeRecords =
+        CloseableIterable.concat(
+            CloseableIterable.transform(
+                CloseableIterable.withNoopClose(sortChangeFiles(keyedTableScanTask.changeTasks())),
+                fileScanTask -> readFile(fileScanTask, readSchema)));
+    Optional<NodeFilter<T>> changeNodeFilter =
+        createNodeFilter(keyedTableScanTask, projectedSchema);
+    StructProjection changeProjectRow =
+        StructProjection.create(readSchema, primaryKeySpec.getPkSchema());
+    Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(readSchema);
+    if (changeNodeFilter.isPresent()) {
+      changeRecords = changeNodeFilter.get().filter(changeRecords);
+    }
+    changeRecords.forEach(
+        record -> changeMap.put(changeProjectRow.copyFor(asStructLike.apply(record)), record));
+    return changeMap;
+  }
+
+  private CloseableIterable<T> readBaseData(
+      KeyedTableScanTask keyedTableScanTask, Schema projectedSchema) {
+    CloseableIterable<T> baseRecords =
+        CloseableIterable.concat(
+            CloseableIterable.transform(
+                CloseableIterable.withNoopClose(keyedTableScanTask.baseTasks()),
+                fileScanTask -> readFile(fileScanTask, projectedSchema)));
+    Optional<NodeFilter<T>> baseNodeFilter = createNodeFilter(keyedTableScanTask, projectedSchema);
+    if (baseNodeFilter.isPresent()) {
+      baseRecords = baseNodeFilter.get().filter(baseRecords);
+    }
+    return baseRecords;
   }
 
   private List<MixedFileScanTask> sortChangeFiles(List<MixedFileScanTask> changeTasks) {
@@ -164,11 +214,6 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
     columns.add(MetadataColumns.FILE_OFFSET_FILED);
 
     return new Schema(columns);
-  }
-
-  @Override
-  public CloseableIterator<T> readDeletedData(KeyedTableScanTask keyedTableScanTask) {
-    return null;
   }
 
   protected abstract MergeFunction<T> mergeFunction();

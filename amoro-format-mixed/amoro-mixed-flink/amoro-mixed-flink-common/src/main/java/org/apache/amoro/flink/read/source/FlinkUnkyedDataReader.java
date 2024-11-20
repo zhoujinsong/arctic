@@ -61,24 +61,6 @@ public class FlinkUnkyedDataReader extends AbstractAdaptHiveUnkeyedDataReader<Ro
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        reuseContainer);
-  }
-
-  public FlinkUnkyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
       PrimaryKeySpec primaryKeySpec,
       String nameMapping,
       boolean caseSensitive,

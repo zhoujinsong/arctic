@@ -18,6 +18,7 @@
 
 package org.apache.amoro.flink.read.source;
 
+import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.base.Preconditions;
 import org.apache.flink.annotation.Internal;
@@ -47,22 +48,26 @@ public class DataIterator<T> implements CloseableIterator<T> {
   private int fileOffset;
   private long recordOffset;
   private long currentFileOffset;
+  private ChangeAction currentChangeAction;
   private final Function<T, Long> fileOffsetGetter;
+  private final Function<T, ChangeAction> changeActionGetter;
   private final Function<T, T> metaColumnRemover;
 
   public DataIterator() {
-    this(null, Collections.emptyList(), t -> Long.MIN_VALUE, t -> t);
+    this(null, Collections.emptyList(), t -> Long.MIN_VALUE, t -> ChangeAction.INSERT, t -> t);
   }
 
   public DataIterator(
       FileScanTaskReader<T> fileScanTaskReader,
       Collection<MixedFileScanTask> tasks,
       Function<T, Long> fileOffsetGetter,
+      Function<T, ChangeAction> changeActionGetter,
       Function<T, T> metaColumnRemover) {
     this.fileScanTaskReader = fileScanTaskReader;
     this.tasks = tasks.iterator();
     this.taskSize = tasks.size();
     this.fileOffsetGetter = fileOffsetGetter;
+    this.changeActionGetter = changeActionGetter;
     this.metaColumnRemover = metaColumnRemover;
 
     this.currentIterator = CloseableIterator.empty();
@@ -129,6 +134,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
     recordOffset += 1;
     T row = currentIterator.next();
     currentFileOffset = fileOffsetGetter.apply(row);
+    currentChangeAction = changeActionGetter.apply(row);
     return metaColumnRemover.apply(row);
   }
 
@@ -173,6 +179,10 @@ public class DataIterator<T> implements CloseableIterator<T> {
     return currentFileOffset;
   }
 
+  public ChangeAction currentChangeAction() {
+    return currentChangeAction;
+  }
+
   static <T> DataIterator<T> empty() {
     return new EmptyIterator<>();
   }
@@ -180,7 +190,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   private static class EmptyIterator<T> extends DataIterator<T> {
 
     public EmptyIterator() {
-      super(null, Collections.emptyList(), t -> Long.MIN_VALUE, t -> t);
+      super(null, Collections.emptyList(), t -> Long.MIN_VALUE, t -> ChangeAction.INSERT, t -> t);
     }
 
     @Override

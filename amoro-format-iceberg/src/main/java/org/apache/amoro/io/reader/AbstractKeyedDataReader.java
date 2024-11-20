@@ -21,8 +21,10 @@ package org.apache.amoro.io.reader;
 import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.scan.KeyedTableScanTask;
+import org.apache.amoro.scan.NodeFileScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Sets;
 import org.apache.amoro.table.PrimaryKeySpec;
+import org.apache.amoro.utils.NodeFilter;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -41,8 +43,8 @@ import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -59,7 +61,6 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
   protected final Schema projectedSchema;
   protected final String nameMapping;
   protected final boolean caseSensitive;
-  protected final Set<DataTreeNode> sourceNodes;
   protected final BiFunction<Type, Object, Object> convertConstant;
   protected final PrimaryKeySpec primaryKeySpec;
   protected final boolean reuseContainer;
@@ -73,7 +74,6 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
       boolean reuseContainer,
       StructLikeCollections structLikeCollections) {
     this.fileIO = fileIO;
@@ -83,7 +83,6 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
     this.convertConstant = convertConstant;
-    this.sourceNodes = sourceNodes != null ? Collections.unmodifiableSet(sourceNodes) : null;
     this.reuseContainer = reuseContainer;
     if (structLikeCollections != null) {
       this.structLikeCollections = structLikeCollections;
@@ -113,14 +112,13 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
       Schema tableSchema,
       Schema projectedSchema,
       PrimaryKeySpec primaryKeySpec,
-      Set<DataTreeNode> sourceNodes,
       StructLikeCollections structLikeCollections) {
     return new GenericMixedDeleteFilter(
         keyedTableScanTask,
         tableSchema,
         projectedSchema,
         primaryKeySpec,
-        sourceNodes,
+        filterNode(keyedTableScanTask).map(Sets::newHashSet).orElse(null),
         structLikeCollections);
   }
 
@@ -165,6 +163,36 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
     }
 
     return builder.build();
+  }
+
+  protected Optional<NodeFilter<T>> createNodeFilter(
+      KeyedTableScanTask keyedTableScanTask, Schema recordSchema) {
+    Optional<DataTreeNode> filterNode = filterNode(keyedTableScanTask);
+    return filterNode.map(
+        dataTreeNode ->
+            new NodeFilter<>(
+                Sets.newHashSet(dataTreeNode),
+                recordSchema,
+                primaryKeySpec,
+                toStructLikeFunction().apply(recordSchema)));
+  }
+
+  protected Optional<DataTreeNode> filterNode(KeyedTableScanTask keyedTableScanTask) {
+    if (keyedTableScanTask instanceof NodeFileScanTask) {
+      DataTreeNode node = ((NodeFileScanTask) keyedTableScanTask).treeNode();
+      if (keyedTableScanTask.dataTasks().stream().anyMatch(task -> !task.file().node().equals(node))
+          || keyedTableScanTask.deleteTasks().stream()
+              .anyMatch(task -> !task.file().node().equals(node))) {
+        return Optional.of(node);
+      }
+    }
+    return Optional.empty();
+  }
+
+  protected boolean hasDeleteData(KeyedTableScanTask keyedTableScanTask) {
+    return !keyedTableScanTask.deleteTasks().isEmpty()
+        || keyedTableScanTask.dataTasks().stream()
+            .anyMatch(mixedFileScanTask -> !mixedFileScanTask.deletes().isEmpty());
   }
 
   protected class GenericMixedDeleteFilter extends MixedDeleteFilter<T> {

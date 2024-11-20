@@ -18,8 +18,14 @@
 
 package org.apache.amoro.hive.optimizing;
 
+import static org.apache.amoro.optimizing.MixedIcebergOptimizingDataReader.NODE_ID;
+
+import org.apache.amoro.data.DataFileType;
+import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.data.PrimaryKeyedFile;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericMergeDataReader;
 import org.apache.amoro.hive.io.reader.MixedHiveGenericReplaceDataReader;
+import org.apache.amoro.io.reader.AbstractKeyedDataReader;
 import org.apache.amoro.optimizing.OptimizingDataReader;
 import org.apache.amoro.optimizing.RewriteFilesInput;
 import org.apache.amoro.scan.BasicMixedFileScanTask;
@@ -37,6 +43,7 @@ import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.util.PropertyUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +72,7 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
 
   @Override
   public CloseableIterable<Record> readData() {
-    MixedHiveGenericReplaceDataReader reader = mixedTableDataReader(table.schema());
+    AbstractKeyedDataReader<Record> reader = mixedTableDataReader(table.schema());
 
     // Change returned value by readData  from Iterator to Iterable in future
     CloseableIterator<Record> closeableIterator =
@@ -80,7 +87,7 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
             MetadataColumns.FILE_PATH,
             MetadataColumns.ROW_POSITION,
             org.apache.amoro.table.MetadataColumns.TREE_NODE_FIELD);
-    MixedHiveGenericReplaceDataReader reader = mixedTableDataReader(schema);
+    AbstractKeyedDataReader<Record> reader = mixedTableDataReader(schema);
     return wrapIterator2Iterable(
         reader.readDeletedData(nodeFileScanTask(input.rePosDeletedDataFilesForMixed())));
   }
@@ -88,7 +95,7 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
   @Override
   public void close() {}
 
-  private MixedHiveGenericReplaceDataReader mixedTableDataReader(Schema requiredSchema) {
+  private AbstractKeyedDataReader<Record> mixedTableDataReader(Schema requiredSchema) {
 
     PrimaryKeySpec primaryKeySpec = PrimaryKeySpec.noPrimaryKey();
     if (table.isKeyedTable()) {
@@ -96,33 +103,58 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
       primaryKeySpec = keyedTable.primaryKeySpec();
     }
 
-    return new MixedHiveGenericReplaceDataReader(
-        table.io(),
-        table.schema(),
-        requiredSchema,
-        primaryKeySpec,
-        table.properties().get(TableProperties.DEFAULT_NAME_MAPPING),
-        false,
-        IdentityPartitionConverters::convertConstant,
-        null,
-        false,
-        structLikeCollections);
+    String mergeFunction =
+        PropertyUtil.propertyAsString(
+            table.properties(),
+            org.apache.amoro.table.TableProperties.MERGE_FUNCTION,
+            org.apache.amoro.table.TableProperties.MERGE_FUNCTION_DEFAULT);
+
+    if (org.apache.amoro.table.TableProperties.MERGE_FUNCTION_REPLACE.equals(mergeFunction)) {
+      return new MixedHiveGenericReplaceDataReader(
+          table.io(),
+          table.schema(),
+          requiredSchema,
+          primaryKeySpec,
+          table.properties().get(TableProperties.DEFAULT_NAME_MAPPING),
+          false,
+          IdentityPartitionConverters::convertConstant,
+          false,
+          structLikeCollections);
+    } else if (org.apache.amoro.table.TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE.equals(
+        mergeFunction)) {
+      return new MixedHiveGenericMergeDataReader(
+          table.io(),
+          table.schema(),
+          requiredSchema,
+          primaryKeySpec,
+          table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
+          false,
+          IdentityPartitionConverters::convertConstant,
+          false,
+          structLikeCollections);
+    } else {
+      throw new IllegalArgumentException("unsupported merge function: " + mergeFunction);
+    }
   }
 
   private NodeFileScanTask nodeFileScanTask(List<PrimaryKeyedFile> dataFiles) {
     List<DeleteFile> posDeleteList = input.positionDeleteForMixed();
 
-    List<PrimaryKeyedFile> equlityDeleteList = input.equalityDeleteForMixed();
-
-    List<PrimaryKeyedFile> allTaskFiles = new ArrayList<>();
-    allTaskFiles.addAll(equlityDeleteList);
-    allTaskFiles.addAll(dataFiles);
+    // Filter change files as they are included in equality delete files too.
+    List<PrimaryKeyedFile> allTaskFiles = dataFiles.stream()
+        .filter(file -> !file.type().equals(DataFileType.CHANGE_FILE))
+        .collect(Collectors.toList());
+    allTaskFiles.addAll(input.equalityDeleteForMixed());
 
     List<MixedFileScanTask> fileScanTasks =
         allTaskFiles.stream()
             .map(file -> new BasicMixedFileScanTask(file, posDeleteList, table.spec()))
             .collect(Collectors.toList());
-    return new NodeFileScanTask(fileScanTasks);
+    String nodeId = input.getOptions().get(NODE_ID);
+    if (nodeId == null) {
+      throw new IllegalArgumentException("Node id is null");
+    }
+    return new NodeFileScanTask(DataTreeNode.ofId(Long.parseLong(nodeId)), fileScanTasks);
   }
 
   private CloseableIterable<Record> wrapIterator2Iterable(CloseableIterator<Record> iterator) {

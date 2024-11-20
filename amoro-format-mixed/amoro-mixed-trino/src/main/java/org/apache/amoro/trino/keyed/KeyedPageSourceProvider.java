@@ -32,7 +32,7 @@ import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.type.TypeManager;
 import org.apache.amoro.data.PrimaryKeyedFile;
-import org.apache.amoro.hive.io.reader.AdaptHiveMixedDeleteFilter;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveDeleteFilter;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.ImmutableList;
@@ -82,7 +82,7 @@ public class KeyedPageSourceProvider implements ConnectorPageSourceProvider {
         SchemaParser.fromJson(keyedTableHandle.getIcebergTableHandle().getTableSchemaJson());
     List<IcebergColumnHandle> deleteFilterRequiredSchema =
         IcebergUtil.getColumns(
-            new KeyedDeleteFilter(
+            new KeyedHiveDeleteFilter(
                     keyedTableScanTask,
                     tableSchema,
                     ImmutableList.of(),
@@ -96,8 +96,8 @@ public class KeyedPageSourceProvider implements ConnectorPageSourceProvider {
         .filter(column -> !columns.contains(column))
         .forEach(requiredColumnsBuilder::add);
     List<IcebergColumnHandle> requiredColumns = requiredColumnsBuilder.build();
-    AdaptHiveMixedDeleteFilter<TrinoRow> mixedDeleteFilter =
-        new KeyedDeleteFilter(
+    AbstractMixedHiveDeleteFilter<TrinoRow> mixedDeleteFilter =
+        new KeyedHiveDeleteFilter(
             keyedTableScanTask,
             tableSchema,
             requiredColumns,

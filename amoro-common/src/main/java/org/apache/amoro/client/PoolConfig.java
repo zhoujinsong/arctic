@@ -18,14 +18,13 @@
 
 package org.apache.amoro.client;
 
+import org.apache.amoro.shade.thrift.org.apache.hc.core5.net.URIBuilder;
 import org.apache.amoro.shade.thrift.org.apache.thrift.TServiceClient;
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.apache.http.client.utils.URLEncodedUtils;
 
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.nio.charset.Charset;
+import java.net.URISyntaxException;
 import java.time.Duration;
 
 public class PoolConfig<T extends TServiceClient> extends GenericObjectPoolConfig<ThriftClient<T>> {
@@ -88,15 +87,20 @@ public class PoolConfig<T extends TServiceClient> extends GenericObjectPoolConfi
 
   public static PoolConfig<?> forUrl(String url) {
     PoolConfig<?> poolConfig = new PoolConfig<>();
-    URLEncodedUtils.parse(URI.create(url), Charset.defaultCharset())
-        .forEach(
-            pair -> {
-              try {
-                BeanUtils.setProperty(poolConfig, pair.getName(), pair.getValue());
-              } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException("Parse url parameters failed", e);
-              }
-            });
+    try {
+      new URIBuilder(url)
+          .getQueryParams()
+          .forEach(
+              pair -> {
+                try {
+                  BeanUtils.setProperty(poolConfig, pair.getName(), pair.getValue());
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                  throw new RuntimeException("Parse url parameters failed", e);
+                }
+              });
+    } catch (URISyntaxException e) {
+      throw new IllegalArgumentException("Illegal url format:" + url, e);
+    }
     return poolConfig;
   }
 }

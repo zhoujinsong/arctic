@@ -48,7 +48,8 @@ public class TestBaseCombinedScanTask {
         new BasicMixedFileScanTask(keyedFile, null, PartitionSpec.unpartitioned(), null);
 
     BaseCombinedScanTask baseCombinedScanTask =
-        new BaseCombinedScanTask(new NodeFileScanTask(Collections.singletonList(task)));
+        new BaseCombinedScanTask(
+            new NodeFileScanTask(keyedFile.node(), Collections.singletonList(task)));
     String expected =
         "BaseCombinedScanTask{\n"
             + "tasks=NodeFileScanTask{\n"

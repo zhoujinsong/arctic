@@ -18,6 +18,9 @@
 
 package org.apache.amoro.io;
 
+import static org.apache.amoro.table.TableProperties.BASE_FILE_INDEX_HASH_BUCKET;
+import static org.apache.amoro.table.TableProperties.CHANGE_FILE_INDEX_HASH_BUCKET;
+
 import org.apache.amoro.BasicTableTestHelper;
 import org.apache.amoro.TableFormat;
 import org.apache.amoro.TableTestHelper;
@@ -26,12 +29,11 @@ import org.apache.amoro.catalog.CatalogTestHelper;
 import org.apache.amoro.catalog.TableTestBase;
 import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
-import org.apache.amoro.shade.guava32.com.google.common.collect.Maps;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Sets;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.junit.Assert;
@@ -53,7 +55,19 @@ public class TestMergeDataReader extends TableTestBase {
     return new Object[][] {
       {
         new BasicCatalogTestHelper(TableFormat.MIXED_ICEBERG),
-        new BasicTableTestHelper(true, true, buildTableProperties())
+        new BasicTableTestHelper(true, true, buildTableProperties(FileFormat.PARQUET, 4, 4))
+      },
+      {
+        new BasicCatalogTestHelper(TableFormat.MIXED_ICEBERG),
+        new BasicTableTestHelper(true, true, buildTableProperties(FileFormat.ORC, 4, 4))
+      },
+      {
+        new BasicCatalogTestHelper(TableFormat.MIXED_ICEBERG),
+        new BasicTableTestHelper(true, true, buildTableProperties(FileFormat.PARQUET, 4, 8))
+      },
+      {
+        new BasicCatalogTestHelper(TableFormat.MIXED_ICEBERG),
+        new BasicTableTestHelper(true, true, buildTableProperties(FileFormat.PARQUET, 8, 4))
       },
     };
   }
@@ -98,7 +112,7 @@ public class TestMergeDataReader extends TableTestBase {
     changeRecords.add(tableTestHelper().generateTestRecord(1, "john1", 0, "2022-01-01T12:00:00"));
     changeRecords.add(tableTestHelper().generateTestRecord(2, null, 1, "2022-01-02T12:00:00"));
 
-    // write change insert with transaction id:2, (id=5),(id=6)
+    // write change insert with transaction id:2, (id=1),(id=2)
     writeChangeStore(2L, ChangeAction.INSERT, changeRecords);
   }
 
@@ -112,7 +126,7 @@ public class TestMergeDataReader extends TableTestBase {
   }
 
   @Test
-  public void testMergeDataReader() {
+  public void testReadData() {
     Set<Record> records =
         Sets.newHashSet(
             tableTestHelper()
@@ -128,12 +142,29 @@ public class TestMergeDataReader extends TableTestBase {
     Assert.assertEquals(expectRecords, records);
   }
 
-  private static Map<String, String> buildTableProperties() {
-    Map<String, String> tableProperties = Maps.newHashMapWithExpectedSize(3);
-    tableProperties.put(TableProperties.FORMAT_VERSION, "2");
+  @Test
+  public void testReadDeletedData() {
+    Set<Record> records =
+        Sets.newHashSet(
+            tableTestHelper()
+                .readKeyedTable(
+                    getMixedTable().asKeyedTable(), Expressions.alwaysTrue(), null, false, true));
+    // expect: (id=4),(id=5),(id=6)
+    Set<Record> expectRecords = Sets.newHashSet();
+    expectRecords.add(tableTestHelper().generateTestRecord(1, "john", 0, "2022-01-01T12:00:00"));
+    expectRecords.add(tableTestHelper().generateTestRecord(2, "lily", 0, "2022-01-02T12:00:00"));
+    expectRecords.add(tableTestHelper().generateTestRecord(4, "sam", 0, "2022-01-04T12:00:00"));
+    Assert.assertEquals(expectRecords, records);
+  }
+
+  private static Map<String, String> buildTableProperties(
+      FileFormat fileFormat, int changeBucket, int baseBucket) {
+    Map<String, String> tableProperties = BasicTableTestHelper.buildTableFormat(fileFormat.name());
     tableProperties.put(
         org.apache.amoro.table.TableProperties.MERGE_FUNCTION,
         org.apache.amoro.table.TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE);
+    tableProperties.put(BASE_FILE_INDEX_HASH_BUCKET, String.valueOf(baseBucket));
+    tableProperties.put(CHANGE_FILE_INDEX_HASH_BUCKET, String.valueOf(changeBucket));
     return tableProperties;
   }
 }

@@ -272,7 +272,6 @@ public class MixedDataTestHelpers {
               null,
               true,
               IdentityPartitionConverters::convertConstant,
-              null,
               false,
               structLikeCollections);
     } else if (mergeFunction.equals(TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE)) {
@@ -285,7 +284,6 @@ public class MixedDataTestHelpers {
               null,
               true,
               IdentityPartitionConverters::convertConstant,
-              null,
               false,
               structLikeCollections);
     } else {

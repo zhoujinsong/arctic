@@ -44,7 +44,7 @@ public class ChangelogSplit extends MixedFormatSplit {
       Collection<MixedFileScanTask> insertScanTasks,
       Collection<MixedFileScanTask> deleteScanTasks,
       int taskIndex) {
-    Preconditions.checkArgument(insertScanTasks.size() > 0 || deleteScanTasks.size() > 0);
+    Preconditions.checkArgument(!insertScanTasks.isEmpty() || !deleteScanTasks.isEmpty());
     this.taskIndex = taskIndex;
     this.insertScanTasks = insertScanTasks;
     this.deleteScanTasks = deleteScanTasks;

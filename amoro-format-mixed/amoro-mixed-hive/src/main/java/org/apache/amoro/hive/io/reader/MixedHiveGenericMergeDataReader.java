@@ -18,8 +18,9 @@
 
 package org.apache.amoro.hive.io.reader;
 
-import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
+import org.apache.amoro.io.reader.GenericMergeDataReader;
+import org.apache.amoro.io.reader.MergeFunction;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.Schema;
@@ -35,16 +36,16 @@ import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedDataReader<Record> {
+public class MixedHiveGenericMergeDataReader extends AbstractMixedHiveMergeDataReader<Record> {
 
-  public AdaptHiveGenericUnkeyedDataReader(
+  public MixedHiveGenericMergeDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
+      PrimaryKeySpec primaryKeySpec,
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
@@ -54,6 +55,7 @@ public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedD
         fileIO,
         tableSchema,
         projectedSchema,
+        primaryKeySpec,
         nameMapping,
         caseSensitive,
         convertConstant,
@@ -61,51 +63,11 @@ public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedD
         structLikeCollections);
   }
 
-  public AdaptHiveGenericUnkeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        reuseContainer);
-  }
-
-  public AdaptHiveGenericUnkeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        sourceNodes,
-        reuseContainer);
-  }
-
   @Override
   protected Function<MessageType, ParquetValueReader<?>> getParquetReaderFunction(
-      Schema projectedSchema, Map<Integer, ?> idToConstant) {
+      Schema projectSchema, Map<Integer, ?> idToConstant) {
     return fileSchema ->
-        AdaptHiveGenericParquetReaders.buildReader(projectedSchema, fileSchema, idToConstant);
+        AdaptHiveGenericParquetReaders.buildReader(projectSchema, fileSchema, idToConstant);
   }
 
   @Override
@@ -120,5 +82,10 @@ public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedD
       final InternalRecordWrapper wrapper = new InternalRecordWrapper(schema.asStruct());
       return wrapper::copyFor;
     };
+  }
+
+  @Override
+  protected MergeFunction<Record> mergeFunction() {
+    return GenericMergeDataReader.PartialUpdateMergeFunction.getInstance();
   }
 }

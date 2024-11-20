@@ -18,7 +18,6 @@
 
 package org.apache.amoro.io.reader;
 
-import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
@@ -35,7 +34,6 @@ import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -50,7 +48,6 @@ public class GenericReplaceDataReader extends AbstractReplaceDataReader<Record> 
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
       boolean reuseContainer,
       StructLikeCollections structLikeCollections) {
     super(
@@ -61,7 +58,6 @@ public class GenericReplaceDataReader extends AbstractReplaceDataReader<Record> 
         nameMapping,
         caseSensitive,
         convertConstant,
-        sourceNodes,
         reuseContainer,
         structLikeCollections);
   }

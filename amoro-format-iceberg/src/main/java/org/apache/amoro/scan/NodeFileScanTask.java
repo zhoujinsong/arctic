@@ -52,7 +52,8 @@ public class NodeFileScanTask implements KeyedTableScanTask {
     this.treeNode = treeNode;
   }
 
-  public NodeFileScanTask(List<MixedFileScanTask> allTasks) {
+  public NodeFileScanTask(DataTreeNode treeNode, List<MixedFileScanTask> allTasks) {
+    this.treeNode = treeNode;
     Map<DataFileType, List<MixedFileScanTask>> tasksByType =
         allTasks.stream().collect(Collectors.groupingBy(t -> t.file().type()));
 
