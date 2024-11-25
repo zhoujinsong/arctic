@@ -79,10 +79,10 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
       Schema requiredSchema = mixedDeleteFilter.requiredSchema();
 
       CloseableIterable<T> dataIterable =
-          mixedDeleteFilter.filter(readDataTask(keyedTableScanTask, requiredSchema));
+          mixedDeleteFilter.filter(readDataTask(keyedTableScanTask, requiredSchema, true));
       return dataIterable.iterator();
     } else {
-      return readDataTask(keyedTableScanTask, projectedSchema).iterator();
+      return readDataTask(keyedTableScanTask, projectedSchema, true).iterator();
     }
   }
 
@@ -99,15 +99,16 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
 
       Schema requiredSchema = mixedDeleteFilter.requiredSchema();
 
+      // Do not include change record for rewrite position delete file optimizing process
       CloseableIterable<T> dataIterable =
-          mixedDeleteFilter.filterNegate(readDataTask(keyedTableScanTask, requiredSchema));
+          mixedDeleteFilter.filterNegate(readDataTask(keyedTableScanTask, requiredSchema, false));
       return dataIterable.iterator();
     } else {
       return CloseableIterator.empty();
     }
   }
 
-  private CloseableIterable<T> readDataTask(KeyedTableScanTask scanTask, Schema projectedSchema) {
+  private CloseableIterable<T> readDataTask(KeyedTableScanTask scanTask, Schema projectedSchema, boolean includeChange) {
     Optional<NodeFilter<T>> baseNodeFilter = createNodeFilter(scanTask, projectedSchema);
     CloseableIterable<T> baseRecords =
         CloseableIterable.concat(
@@ -127,31 +128,35 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
       insertRecords = baseNodeFilter.get().filter(insertRecords);
     }
 
-    Schema changeProjectedSchema =
-        TypeUtil.join(projectedSchema, new Schema(MetadataColumns.CHANGE_ACTION_FIELD));
-    CloseableIterable<T> changeRecords =
-        CloseableIterable.concat(
-            CloseableIterable.transform(
-                CloseableIterable.withNoopClose(scanTask.changeTasks()),
-                fileScanTask -> readFile(fileScanTask, changeProjectedSchema)));
-    Accessor<StructLike> changeActionAccessor =
-        changeProjectedSchema.accessorForField(MetadataColumns.CHANGE_ACTION_ID);
-    Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(changeProjectedSchema);
-    Optional<NodeFilter<T>> changeNodeFilter = createNodeFilter(scanTask, changeProjectedSchema);
-    changeRecords =
-        CloseableIterable.filter(
-            changeRecords,
-            record -> {
-              ChangeAction changeAction =
-                  ChangeAction.valueOf(
-                      (String) changeActionAccessor.get(asStructLike.apply(record)));
-              return changeAction.equals(ChangeAction.INSERT)
-                  || changeAction.equals(ChangeAction.UPDATE_AFTER);
-            });
-    if (changeNodeFilter.isPresent()) {
-      changeRecords = changeNodeFilter.get().filter(changeRecords);
-    }
+    if (includeChange) {
+      Schema changeProjectedSchema =
+          TypeUtil.join(projectedSchema, new Schema(MetadataColumns.CHANGE_ACTION_FIELD));
+      CloseableIterable<T> changeRecords =
+          CloseableIterable.concat(
+              CloseableIterable.transform(
+                  CloseableIterable.withNoopClose(scanTask.changeTasks()),
+                  fileScanTask -> readFile(fileScanTask, changeProjectedSchema)));
+      Accessor<StructLike> changeActionAccessor =
+          changeProjectedSchema.accessorForField(MetadataColumns.CHANGE_ACTION_ID);
+      Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(changeProjectedSchema);
+      Optional<NodeFilter<T>> changeNodeFilter = createNodeFilter(scanTask, changeProjectedSchema);
+      changeRecords =
+          CloseableIterable.filter(
+              changeRecords,
+              record -> {
+                ChangeAction changeAction =
+                    ChangeAction.valueOf(
+                        (String) changeActionAccessor.get(asStructLike.apply(record)));
+                return changeAction.equals(ChangeAction.INSERT)
+                    || changeAction.equals(ChangeAction.UPDATE_AFTER);
+              });
+      if (changeNodeFilter.isPresent()) {
+        changeRecords = changeNodeFilter.get().filter(changeRecords);
+      }
 
-    return CloseableIterable.concat(Lists.newArrayList(baseRecords, insertRecords, changeRecords));
+      return CloseableIterable.concat(Lists.newArrayList(baseRecords, insertRecords, changeRecords));
+    } else {
+      return CloseableIterable.concat(Lists.newArrayList(baseRecords, insertRecords));
+    }
   }
 }
