@@ -62,7 +62,7 @@ public class PartialUpdateMergeFunction implements MergeFunction<InternalRow> {
     @Override
     public void setNullAt(int i) {
       originalRow.setNullAt(i);
-      updateRow.isNullAt(i);
+      updateRow.setNullAt(i);
     }
 
     @Override

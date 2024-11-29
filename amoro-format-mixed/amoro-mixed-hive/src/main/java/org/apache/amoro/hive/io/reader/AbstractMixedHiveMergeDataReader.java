@@ -79,7 +79,7 @@ public abstract class AbstractMixedHiveMergeDataReader<T> extends AbstractMergeD
 
   @Override
   protected CloseableIterable<T> newParquetIterable(
-      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant) {
+      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, boolean reuseContainer) {
     AdaptHiveParquet.ReadBuilder builder =
         AdaptHiveParquet.read(fileIO.newInputFile(task.file().path().toString()))
             .split(task.start(), task.length())

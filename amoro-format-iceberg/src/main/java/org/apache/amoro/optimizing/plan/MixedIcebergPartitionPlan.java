@@ -210,6 +210,17 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
     }
 
     @Override
+    public boolean enoughContent() {
+      if (keyedTable) {
+        int baseSplitCount = getBaseSplitCount();
+        return undersizedSegmentFileSize >= (config.getTargetSize() * baseSplitCount)
+            && min1SegmentFileSize + min2SegmentFileSize <= config.getTargetSize();
+      } else {
+        return super.enoughContent();
+      }
+    }
+
+    @Override
     public boolean segmentShouldRewritePos(DataFile dataFile, List<ContentFile<?>> deletes) {
       if (deletes.stream()
           .anyMatch(
@@ -279,15 +290,18 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
       List<SplitTask> result = Lists.newArrayList();
       FileTree rootTree = FileTree.newTreeRoot();
       undersizedSegmentFiles.forEach(rootTree::addRewriteDataFile);
+      Map<DataFile, List<ContentFile<?>>> leftUndersizedSegmentFiles = Maps.newHashMap();
       for (SplitTask splitTask : genSplitTasks(rootTree)) {
         if (splitTask.getRewriteDataFiles().size() > 1) {
-          result.add(splitTask);
+          splitTask.getRewriteDataFiles().forEach(file ->
+              leftUndersizedSegmentFiles.put(file, undersizedSegmentFiles.get(file)));
           continue;
         }
         disposeUndersizedSegmentFile(splitTask);
       }
 
       rootTree = FileTree.newTreeRoot();
+      leftUndersizedSegmentFiles.forEach(rootTree::addRewriteDataFile);
       rewritePosDataFiles.forEach(rootTree::addRewritePosDataFile);
       rewriteDataFiles.forEach(rootTree::addRewriteDataFile);
       result.addAll(genSplitTasks(rootTree));

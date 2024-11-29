@@ -34,6 +34,7 @@ import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.StructType;
 
 import java.util.Map;
@@ -84,5 +85,14 @@ public class SparkMergeDataReader extends AbstractMixedHiveMergeDataReader<Inter
   @Override
   protected MergeFunction<InternalRow> mergeFunction() {
     return PartialUpdateMergeFunction.getInstance();
+  }
+
+  @Override
+  protected Function<Schema, Function<InternalRow, StructLike>> toNonResueStructLikeFunction() {
+    return schema -> {
+      final StructType structType = SparkSchemaUtil.convert(schema);
+      SparkInternalRowWrapper wrapper = new SparkInternalRowWrapper(structType);
+      return wrapper::copyFor;
+    };
   }
 }

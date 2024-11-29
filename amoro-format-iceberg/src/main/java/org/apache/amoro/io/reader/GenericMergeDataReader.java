@@ -87,6 +87,11 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
     return PartialUpdateMergeFunction.getInstance();
   }
 
+  @Override
+  protected Function<Schema, Function<Record, StructLike>> toNonResueStructLikeFunction() {
+    return toStructLikeFunction();
+  }
+
   public static class PartialUpdateMergeFunction implements MergeFunction<Record> {
     private static final PartialUpdateMergeFunction INSTANCE = new PartialUpdateMergeFunction();
 
@@ -96,7 +101,7 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
 
     @Override
     public Record merge(Record record, Record update) {
-      for (int i = 0; i < record.size(); i++) {
+      for (int i = 0; i < record.size() && i < update.size(); i++) {
         if (update.get(i) != null) {
           record.set(i, update.get(i));
         }

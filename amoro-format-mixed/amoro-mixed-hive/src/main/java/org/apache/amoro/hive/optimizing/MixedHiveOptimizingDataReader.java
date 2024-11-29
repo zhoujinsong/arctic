@@ -35,6 +35,7 @@ import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.MixedTable;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
+import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -46,8 +47,8 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.util.PropertyUtil;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -140,10 +141,9 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
   private NodeFileScanTask nodeFileScanTask(List<PrimaryKeyedFile> dataFiles) {
     List<DeleteFile> posDeleteList = input.positionDeleteForMixed();
 
-    // Filter change files as they are included in equality delete files too.
-    List<PrimaryKeyedFile> allTaskFiles = dataFiles.stream()
-        .filter(file -> !file.type().equals(DataFileType.CHANGE_FILE))
-        .collect(Collectors.toList());
+    boolean includeChangeData =
+        dataFiles.stream().anyMatch(file -> DataFileType.CHANGE_FILE.equals(file.type()));
+    Set<PrimaryKeyedFile> allTaskFiles = Sets.newHashSet(dataFiles);
     allTaskFiles.addAll(input.equalityDeleteForMixed());
 
     List<MixedFileScanTask> fileScanTasks =
@@ -154,7 +154,10 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
     if (nodeId == null) {
       throw new IllegalArgumentException("Node id is null");
     }
-    return new NodeFileScanTask(DataTreeNode.ofId(Long.parseLong(nodeId)), fileScanTasks);
+    NodeFileScanTask nodeFileScanTask =
+        new NodeFileScanTask(DataTreeNode.ofId(Long.parseLong(nodeId)), fileScanTasks);
+    nodeFileScanTask.setIncludeChangeDataRecords(includeChangeData);
+    return nodeFileScanTask;
   }
 
   private CloseableIterable<Record> wrapIterator2Iterable(CloseableIterator<Record> iterator) {

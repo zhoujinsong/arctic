@@ -88,4 +88,9 @@ public class MixedHiveGenericMergeDataReader extends AbstractMixedHiveMergeDataR
   protected MergeFunction<Record> mergeFunction() {
     return GenericMergeDataReader.PartialUpdateMergeFunction.getInstance();
   }
+
+  @Override
+  protected Function<Schema, Function<Record, StructLike>> toNonResueStructLikeFunction() {
+    return toStructLikeFunction();
+  }
 }

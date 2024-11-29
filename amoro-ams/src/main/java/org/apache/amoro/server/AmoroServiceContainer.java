@@ -156,8 +156,7 @@ public class AmoroServiceContainer {
     addHandlerChain(AsyncTableExecutors.getInstance().getHiveCommitSyncExecutor());
     addHandlerChain(AsyncTableExecutors.getInstance().getTableRefreshingExecutor());
     addHandlerChain(AsyncTableExecutors.getInstance().getTagsAutoCreatingExecutor());
-    tableService.initialize();
-    LOG.info("AMS table service have been initialized");
+
     terminalManager = new TerminalManager(serviceConfig, tableService);
 
     initThriftService();
@@ -166,6 +165,10 @@ public class AmoroServiceContainer {
     initHttpService();
     startHttpService();
     registerAmsServiceMetric();
+
+    tableService.initialize();
+    LOG.info("AMS table service have been initialized");
+
   }
 
   private void addHandlerChain(RuntimeHandlerChain chain) {

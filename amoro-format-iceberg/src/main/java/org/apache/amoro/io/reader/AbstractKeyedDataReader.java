@@ -89,13 +89,14 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
     }
   }
 
-  protected CloseableIterable<T> readFile(FileScanTask fileScanTask, Schema projectedSchema) {
+  protected CloseableIterable<T> readFile(FileScanTask fileScanTask, Schema projectedSchema, boolean reuseContainer) {
     switch (fileScanTask.file().format()) {
       case PARQUET:
         return newParquetIterable(
             fileScanTask,
             projectedSchema,
-            DataReaderCommon.getIdToConstant(fileScanTask, projectedSchema, convertConstant));
+            DataReaderCommon.getIdToConstant(fileScanTask, projectedSchema, convertConstant),
+            reuseContainer);
       case ORC:
         return newOrcIterable(
             fileScanTask,
@@ -105,6 +106,10 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
         throw new UnsupportedOperationException(
             "Cannot read unknown format: " + fileScanTask.file().format());
     }
+  }
+
+  protected CloseableIterable<T> readFile(FileScanTask fileScanTask, Schema projectedSchema) {
+    return readFile(fileScanTask, projectedSchema, this.reuseContainer);
   }
 
   protected MixedDeleteFilter<T> createMixedDeleteFilter(
@@ -123,7 +128,7 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
   }
 
   protected CloseableIterable<T> newParquetIterable(
-      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant) {
+      FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, boolean reuseContainer) {
     Parquet.ReadBuilder builder =
         Parquet.read(fileIO.newInputFile(task.file().path().toString()))
             .split(task.start(), task.length())

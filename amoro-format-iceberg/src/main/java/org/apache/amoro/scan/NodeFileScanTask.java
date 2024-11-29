@@ -18,11 +18,10 @@
 
 package org.apache.amoro.scan;
 
+import com.google.common.base.MoreObjects;
 import org.apache.amoro.data.DataFileType;
 import org.apache.amoro.data.DataTreeNode;
-import org.apache.amoro.shade.guava32.com.google.common.base.MoreObjects;
 import org.apache.amoro.table.TableProperties;
-import org.apache.amoro.utils.FileScanTaskUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +44,7 @@ public class NodeFileScanTask implements KeyedTableScanTask {
   private final long openFileCost = TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
   private DataTreeNode treeNode;
   private long rowNums = 0;
+  private boolean includeChangeDataRecords = true;
 
   public NodeFileScanTask() {}
 
@@ -155,13 +155,23 @@ public class NodeFileScanTask implements KeyedTableScanTask {
     return treeNode;
   }
 
+  public boolean isIncludeChangeDataRecords() {
+    return includeChangeDataRecords;
+  }
+
+  public void setIncludeChangeDataRecords(boolean includeChangeDataRecords) {
+    this.includeChangeDataRecords = includeChangeDataRecords;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("\nbaseTasks", FileScanTaskUtil.toString(baseTasks))
-        .add("\nchangeTasks", FileScanTaskUtil.toString(changeTasks))
-        .add("\ninsertTasks", FileScanTaskUtil.toString(insertTasks))
-        .add("\ninsertTasks", FileScanTaskUtil.toString(deleteTasks))
+        .add("baseTasks", baseTasks)
+        .add("insertTasks", insertTasks)
+        .add("deleteTasks", deleteTasks)
+        .add("changeTasks", changeTasks)
+        .add("treeNode", treeNode)
+        .add("includeChangeDataRecords", includeChangeDataRecords)
         .toString();
   }
 }

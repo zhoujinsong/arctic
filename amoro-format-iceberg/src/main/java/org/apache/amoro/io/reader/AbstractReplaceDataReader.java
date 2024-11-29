@@ -21,6 +21,7 @@ package org.apache.amoro.io.reader;
 import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.scan.KeyedTableScanTask;
+import org.apache.amoro.scan.NodeFileScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
 import org.apache.amoro.table.MetadataColumns;
 import org.apache.amoro.table.PrimaryKeySpec;
@@ -79,10 +80,10 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
       Schema requiredSchema = mixedDeleteFilter.requiredSchema();
 
       CloseableIterable<T> dataIterable =
-          mixedDeleteFilter.filter(readDataTask(keyedTableScanTask, requiredSchema, true));
+          mixedDeleteFilter.filter(readDataTask(keyedTableScanTask, requiredSchema));
       return dataIterable.iterator();
     } else {
-      return readDataTask(keyedTableScanTask, projectedSchema, true).iterator();
+      return readDataTask(keyedTableScanTask, projectedSchema).iterator();
     }
   }
 
@@ -101,14 +102,14 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
 
       // Do not include change record for rewrite position delete file optimizing process
       CloseableIterable<T> dataIterable =
-          mixedDeleteFilter.filterNegate(readDataTask(keyedTableScanTask, requiredSchema, false));
+          mixedDeleteFilter.filterNegate(readDataTask(keyedTableScanTask, requiredSchema));
       return dataIterable.iterator();
     } else {
       return CloseableIterator.empty();
     }
   }
 
-  private CloseableIterable<T> readDataTask(KeyedTableScanTask scanTask, Schema projectedSchema, boolean includeChange) {
+  private CloseableIterable<T> readDataTask(KeyedTableScanTask scanTask, Schema projectedSchema) {
     Optional<NodeFilter<T>> baseNodeFilter = createNodeFilter(scanTask, projectedSchema);
     CloseableIterable<T> baseRecords =
         CloseableIterable.concat(
@@ -128,7 +129,7 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
       insertRecords = baseNodeFilter.get().filter(insertRecords);
     }
 
-    if (includeChange) {
+    if (((NodeFileScanTask) scanTask).isIncludeChangeDataRecords()) {
       Schema changeProjectedSchema =
           TypeUtil.join(projectedSchema, new Schema(MetadataColumns.CHANGE_ACTION_FIELD));
       CloseableIterable<T> changeRecords =
@@ -138,7 +139,8 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
                   fileScanTask -> readFile(fileScanTask, changeProjectedSchema)));
       Accessor<StructLike> changeActionAccessor =
           changeProjectedSchema.accessorForField(MetadataColumns.CHANGE_ACTION_ID);
-      Function<T, StructLike> asStructLike = this.toStructLikeFunction().apply(changeProjectedSchema);
+      Function<T, StructLike> asStructLike =
+          this.toStructLikeFunction().apply(changeProjectedSchema);
       Optional<NodeFilter<T>> changeNodeFilter = createNodeFilter(scanTask, changeProjectedSchema);
       changeRecords =
           CloseableIterable.filter(
@@ -154,7 +156,8 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
         changeRecords = changeNodeFilter.get().filter(changeRecords);
       }
 
-      return CloseableIterable.concat(Lists.newArrayList(baseRecords, insertRecords, changeRecords));
+      return CloseableIterable.concat(
+          Lists.newArrayList(baseRecords, insertRecords, changeRecords));
     } else {
       return CloseableIterable.concat(Lists.newArrayList(baseRecords, insertRecords));
     }

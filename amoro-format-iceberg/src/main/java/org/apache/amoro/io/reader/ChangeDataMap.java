@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -106,5 +107,19 @@ public class ChangeDataMap<T> implements Map<StructLike, T> {
   @Override
   public Set<Entry<StructLike, T>> entrySet() {
     return changeMap.entrySet();
+  }
+
+  public Iterable<T> valuesIterable() {
+    return new Iterable<T>() {
+      @NotNull
+      @Override
+      public Iterator<T> iterator() {
+        return changeMap.values().iterator();
+      }
+    };
+  }
+
+  public T forcePut(StructLike key, T value) {
+    return changeMap.put(key, value);
   }
 }
