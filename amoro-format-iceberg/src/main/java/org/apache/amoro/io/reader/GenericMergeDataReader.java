@@ -23,6 +23,7 @@ import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -101,12 +102,15 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
 
     @Override
     public Record merge(Record record, Record update) {
-      for (int i = 0; i < record.size() && i < update.size(); i++) {
-        if (update.get(i) != null) {
-          record.set(i, update.get(i));
+      GenericRecord updatedRecord = GenericRecord.create(record.struct());
+      for (int i = 0; i < record.size(); i++) {
+        if (i < update.size() && update.get(i) != null) {
+          updatedRecord.set(i, update.get(i));
+        } else {
+          updatedRecord.set(i, record.get(i));
         }
       }
-      return record;
+      return updatedRecord;
     }
   }
 }

@@ -193,7 +193,7 @@ public class KeyedTableCommit extends UnKeyedTableCommit {
         removedDataFiles.size(),
         removedDeleteFiles.size(),
         addedDataFiles.size(),
-        addedDataFiles.size());
+        addedDeleteFiles.size());
   }
 
   private boolean fileInPartitionNeedSkip(

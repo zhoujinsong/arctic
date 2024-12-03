@@ -92,8 +92,7 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
             primaryKeySpec,
             structLikeCollections);
     Schema baseRequiredSchema = deleteFilter.requiredSchema();
-    CloseableIterable<T> baseRecords =
-        readBaseData(keyedTableScanTask, baseRequiredSchema);
+    CloseableIterable<T> baseRecords = readBaseData(keyedTableScanTask, baseRequiredSchema);
     baseRecords = deleteFilter.filter(baseRecords);
     StructProjection changeProjectRow =
         StructProjection.create(baseRequiredSchema, primaryKeySpec.getPkSchema());
@@ -110,8 +109,10 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
                 return record;
               }
             });
-    return CloseableIterable.concat(Lists.newArrayList(baseRecords,
-        CloseableIterable.withNoopClose(changeMap.valuesIterable()))).iterator();
+    return CloseableIterable.concat(
+            Lists.newArrayList(
+                baseRecords, CloseableIterable.withNoopClose(changeMap.valuesIterable())))
+        .iterator();
   }
 
   @Override
@@ -127,8 +128,7 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
             primaryKeySpec,
             structLikeCollections);
     Schema baseRequiredSchema = deleteFilter.requiredSchema();
-    CloseableIterable<T> baseRecords =
-        readBaseData(keyedTableScanTask, baseRequiredSchema);
+    CloseableIterable<T> baseRecords = readBaseData(keyedTableScanTask, baseRequiredSchema);
     Predicate<T> deletedPredicate = deleteFilter.deletedPredicate();
     StructProjection changeProjectRow =
         StructProjection.create(baseRequiredSchema, primaryKeySpec.getPkSchema());
@@ -152,8 +152,9 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
     return deletedBaseRecords.iterator();
   }
 
-  private ChangeDataMap<T> constructChangeMap(KeyedTableScanTask keyedTableScanTask, Schema requiredSchema) {
-    //Reuse change data map for self-optimizing process
+  private ChangeDataMap<T> constructChangeMap(
+      KeyedTableScanTask keyedTableScanTask, Schema requiredSchema) {
+    // Reuse change data map for self-optimizing process
     if (changeDataMap != null) {
       return changeDataMap;
     }
@@ -164,18 +165,19 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
             CloseableIterable.transform(
                 CloseableIterable.withNoopClose(sortChangeFiles(keyedTableScanTask.changeTasks())),
                 fileScanTask -> readFile(fileScanTask, requiredSchema, false)));
-    Optional<NodeFilter<T>> changeNodeFilter =
-        createNodeFilter(keyedTableScanTask, requiredSchema);
+    Optional<NodeFilter<T>> changeNodeFilter = createNodeFilter(keyedTableScanTask, requiredSchema);
     StructProjection changeProjectRow =
         StructProjection.create(requiredSchema, primaryKeySpec.getPkSchema());
 
     if (changeNodeFilter.isPresent()) {
       changeRecords = changeNodeFilter.get().filter(changeRecords);
     }
-    Function<T, StructLike> asStructLike = this.toNonResueStructLikeFunction().apply(requiredSchema);
+    Function<T, StructLike> asStructLike =
+        this.toNonResueStructLikeFunction().apply(requiredSchema);
     changeRecords.forEach(
         record -> changeMap.put(changeProjectRow.copyFor(asStructLike.apply(record)), record));
-    return changeMap;
+    changeDataMap = changeMap;
+    return changeDataMap;
   }
 
   private CloseableIterable<T> readBaseData(

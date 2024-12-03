@@ -34,7 +34,6 @@ import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.StructType;
 
 import java.util.Map;

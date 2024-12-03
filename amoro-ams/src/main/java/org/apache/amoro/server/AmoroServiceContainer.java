@@ -168,7 +168,6 @@ public class AmoroServiceContainer {
 
     tableService.initialize();
     LOG.info("AMS table service have been initialized");
-
   }
 
   private void addHandlerChain(RuntimeHandlerChain chain) {

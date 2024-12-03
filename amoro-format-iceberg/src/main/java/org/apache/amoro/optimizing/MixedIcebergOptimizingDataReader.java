@@ -30,9 +30,7 @@ import org.apache.amoro.scan.NodeFileScanTask;
 import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.MixedTable;
 import org.apache.amoro.table.PrimaryKeySpec;
-import org.apache.amoro.table.TableProperties;
 import org.apache.amoro.utils.MixedTableUtil;
-import org.apache.amoro.utils.SchemaUtil;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.DeleteFile;
@@ -43,7 +41,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,6 +54,8 @@ public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
   private final StructLikeCollections structLikeCollections;
 
   private final RewriteFilesInput input;
+
+  private AbstractKeyedDataReader<Record> reader;
 
   public MixedIcebergOptimizingDataReader(
       MixedTable table, StructLikeCollections structLikeCollections, RewriteFilesInput input) {
@@ -82,9 +81,6 @@ public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
             MetadataColumns.FILE_PATH,
             MetadataColumns.ROW_POSITION,
             org.apache.amoro.table.MetadataColumns.TREE_NODE_FIELD);
-    if (MixedTableUtil.isPartialUpdateMergeFunction(table)) {
-      schema = TypeUtil.join(table.schema(), schema);
-    }
 
     AbstractKeyedDataReader<Record> reader = mixedTableDataReader(schema);
     return wrapIterator2Iterable(
@@ -94,7 +90,24 @@ public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
   @Override
   public void close() {}
 
+  private Schema requiredSchemaForPartialUpdateTable() {
+    Schema schema =
+        new Schema(
+            MetadataColumns.FILE_PATH,
+            MetadataColumns.ROW_POSITION,
+            org.apache.amoro.table.MetadataColumns.TREE_NODE_FIELD);
+    return TypeUtil.join(table.schema(), schema);
+  }
+
   protected AbstractKeyedDataReader<Record> mixedTableDataReader(Schema requiredSchema) {
+
+    // Reuse reader for partial update tables
+    if (MixedTableUtil.isPartialUpdateMergeFunction(table)) {
+      requiredSchema = requiredSchemaForPartialUpdateTable();
+      if (reader != null) {
+        return reader;
+      }
+    }
 
     PrimaryKeySpec primaryKeySpec = PrimaryKeySpec.noPrimaryKey();
     if (table.isKeyedTable()) {
@@ -103,29 +116,32 @@ public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
     }
 
     if (MixedTableUtil.isPartialUpdateMergeFunction(table)) {
-      return new GenericMergeDataReader(
-          table.io(),
-          table.schema(),
-          requiredSchema,
-          primaryKeySpec,
-          table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
-          false,
-          IdentityPartitionConverters::convertConstant,
-          false,
-          structLikeCollections);
+      reader =
+          new GenericMergeDataReader(
+              table.io(),
+              table.schema(),
+              requiredSchema,
+              primaryKeySpec,
+              table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
+              false,
+              IdentityPartitionConverters::convertConstant,
+              false,
+              structLikeCollections);
 
     } else {
-      return new GenericReplaceDataReader(
-          table.io(),
-          table.schema(),
-          requiredSchema,
-          primaryKeySpec,
-          table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
-          false,
-          IdentityPartitionConverters::convertConstant,
-          false,
-          structLikeCollections);
+      reader =
+          new GenericReplaceDataReader(
+              table.io(),
+              table.schema(),
+              requiredSchema,
+              primaryKeySpec,
+              table.properties().get(org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING),
+              false,
+              IdentityPartitionConverters::convertConstant,
+              false,
+              structLikeCollections);
     }
+    return reader;
   }
 
   private NodeFileScanTask nodeFileScanTask(List<PrimaryKeyedFile> dataFiles) {

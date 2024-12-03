@@ -293,8 +293,10 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
       Map<DataFile, List<ContentFile<?>>> leftUndersizedSegmentFiles = Maps.newHashMap();
       for (SplitTask splitTask : genSplitTasks(rootTree)) {
         if (splitTask.getRewriteDataFiles().size() > 1) {
-          splitTask.getRewriteDataFiles().forEach(file ->
-              leftUndersizedSegmentFiles.put(file, undersizedSegmentFiles.get(file)));
+          splitTask
+              .getRewriteDataFiles()
+              .forEach(
+                  file -> leftUndersizedSegmentFiles.put(file, undersizedSegmentFiles.get(file)));
           continue;
         }
         disposeUndersizedSegmentFile(splitTask);

@@ -89,7 +89,8 @@ public abstract class AbstractKeyedDataReader<T> implements Serializable {
     }
   }
 
-  protected CloseableIterable<T> readFile(FileScanTask fileScanTask, Schema projectedSchema, boolean reuseContainer) {
+  protected CloseableIterable<T> readFile(
+      FileScanTask fileScanTask, Schema projectedSchema, boolean reuseContainer) {
     switch (fileScanTask.file().format()) {
       case PARQUET:
         return newParquetIterable(

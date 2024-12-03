@@ -18,7 +18,6 @@
   -->
 
 <Configuration>
-    <!--<Configuration status="WARN" monitorInterval="30"> -->
     <properties>
         <property name="LOG_HOME">logs</property>
     </properties>
@@ -65,11 +64,10 @@
 
 
     <Loggers>
-        <Root level="info">
-            <AppenderRef ref="consoleAppender" level="info"/>
-            <AppenderRef ref="infoFileAppender" level="info"/>
+        <Root level="INFO">
+            <AppenderRef ref="consoleAppender"/>
         </Root>
-        <Logger name="iceberg.metric"  level="info">
+        <Logger name="iceberg.metric"  level="INFO">
             <AppenderRef ref="icebergRestMetricReporter"/>
         </Logger>
     </Loggers>
