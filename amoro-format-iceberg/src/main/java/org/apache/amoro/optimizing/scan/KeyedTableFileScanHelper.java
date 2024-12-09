@@ -67,11 +67,13 @@ public class KeyedTableFileScanHelper implements TableFileScanHelper {
   private final long changeSnapshotId;
   private final long baseSnapshotId;
   private Expression partitionFilter = Expressions.alwaysTrue();
+  private final PartitionSpec spec;
 
   public KeyedTableFileScanHelper(KeyedTable keyedTable, KeyedTableSnapshot snapshot) {
     this.keyedTable = keyedTable;
     this.baseSnapshotId = snapshot.baseSnapshotId();
     this.changeSnapshotId = snapshot.changeSnapshotId();
+    this.spec = keyedTable.spec();
   }
 
   /**
@@ -449,5 +451,14 @@ public class KeyedTableFileScanHelper implements TableFileScanHelper {
     public void setMinTransactionIdAfter(long minTransactionIdAfter) {
       this.minTransactionIdAfter = minTransactionIdAfter;
     }
+  }
+
+  @Override
+  public PartitionSpec getSpec(int specId) {
+    if (specId != spec.specId()) {
+      throw new IllegalArgumentException(
+          "Partition spec id " + specId + " not found in table " + keyedTable.name());
+    }
+    return spec;
   }
 }
