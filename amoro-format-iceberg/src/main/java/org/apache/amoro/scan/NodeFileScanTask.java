@@ -18,9 +18,9 @@
 
 package org.apache.amoro.scan;
 
-import com.google.common.base.MoreObjects;
 import org.apache.amoro.data.DataFileType;
 import org.apache.amoro.data.DataTreeNode;
+import org.apache.amoro.shade.guava32.com.google.common.base.MoreObjects;
 import org.apache.amoro.table.TableProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
