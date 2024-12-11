@@ -49,7 +49,6 @@ public class TestKeyedTableScan extends TableDataTestBase {
   private void assertFileCount(int baseFileCount, int changeFileCount) throws IOException {
     final List<MixedFileScanTask> allBaseTasks = Lists.newArrayList();
     final List<MixedFileScanTask> allChangeTasks = Lists.newArrayList();
-    ;
     try (CloseableIterable<CombinedScanTask> combinedScanTasks =
         getMixedTable().asKeyedTable().newScan().planTasks()) {
       try (CloseableIterator<CombinedScanTask> initTasks = combinedScanTasks.iterator()) {
