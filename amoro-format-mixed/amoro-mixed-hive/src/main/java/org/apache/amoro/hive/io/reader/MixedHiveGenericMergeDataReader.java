@@ -50,7 +50,8 @@ public class MixedHiveGenericMergeDataReader extends AbstractMixedHiveMergeDataR
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
       boolean reuseContainer,
-      StructLikeCollections structLikeCollections) {
+      StructLikeCollections structLikeCollections,
+      boolean reuseChangeDataCache) {
     super(
         fileIO,
         tableSchema,
@@ -60,7 +61,8 @@ public class MixedHiveGenericMergeDataReader extends AbstractMixedHiveMergeDataR
         caseSensitive,
         convertConstant,
         reuseContainer,
-        structLikeCollections);
+        structLikeCollections,
+        reuseChangeDataCache);
   }
 
   @Override

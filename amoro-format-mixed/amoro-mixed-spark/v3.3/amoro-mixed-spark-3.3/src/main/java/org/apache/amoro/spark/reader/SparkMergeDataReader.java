@@ -57,7 +57,8 @@ public class SparkMergeDataReader extends AbstractMixedHiveMergeDataReader<Inter
         caseSensitive,
         MixedFormatSparkUtils::convertConstant,
         true,
-        null);
+        null,
+        false);
   }
 
   @Override

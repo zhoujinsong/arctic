@@ -49,7 +49,8 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
       boolean reuseContainer,
-      StructLikeCollections structLikeCollections) {
+      StructLikeCollections structLikeCollections,
+      boolean reuseChangeDataCache) {
     super(
         fileIO,
         tableSchema,
@@ -59,7 +60,8 @@ public class GenericMergeDataReader extends AbstractMergeDataReader<Record> {
         caseSensitive,
         convertConstant,
         reuseContainer,
-        structLikeCollections);
+        structLikeCollections,
+        reuseChangeDataCache);
   }
 
   @Override

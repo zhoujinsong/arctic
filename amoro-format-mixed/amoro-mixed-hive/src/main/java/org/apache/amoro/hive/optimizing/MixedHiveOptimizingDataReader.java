@@ -135,7 +135,8 @@ public class MixedHiveOptimizingDataReader implements OptimizingDataReader {
               false,
               IdentityPartitionConverters::convertConstant,
               false,
-              structLikeCollections);
+              structLikeCollections,
+              true);
     } else {
       reader =
           new MixedHiveGenericReplaceDataReader(

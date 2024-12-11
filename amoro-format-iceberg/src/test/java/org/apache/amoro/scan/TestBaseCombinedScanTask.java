@@ -62,7 +62,10 @@ public class TestBaseCombinedScanTask {
             + "\t\ttransactionId=2, \n"
             + "\t\tfileSizeInBytes=10, \n"
             + "\t\trecordCount=100}], \n"
-            + "\tdeleteFiles=[]}}";
+            + "\tdeleteTasks=[], \n"
+            + "\tchangeTasks=[], \n"
+            + "\ttreeNode=TreeNode(0,0), \n"
+            + "\tincludeChangeDataRecords=true}}";
     Assert.assertEquals(expected, baseCombinedScanTask.toString());
   }
 }

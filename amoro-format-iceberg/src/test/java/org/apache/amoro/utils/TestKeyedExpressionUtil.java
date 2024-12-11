@@ -107,7 +107,7 @@ public class TestKeyedExpressionUtil extends TableTestBase {
   private void assertPlanHalfWithPartitionFilter(Expression partitionFilter) {
     // plan all
     Set<DataFile> baseDataFiles = Sets.newHashSet();
-    Set<DataFile> insertFiles = Sets.newHashSet();
+    Set<DataFile> changeFiles = Sets.newHashSet();
     try (CloseableIterable<CombinedScanTask> it =
         getMixedTable().asKeyedTable().newScan().planTasks()) {
       it.forEach(
@@ -116,31 +116,16 @@ public class TestKeyedExpressionUtil extends TableTestBase {
                   .forEach(
                       t -> {
                         t.baseTasks().forEach(fileTask -> baseDataFiles.add(fileTask.file()));
-                        t.insertTasks().forEach(fileTask -> insertFiles.add(fileTask.file()));
-                      }));
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    baseDataFiles.clear();
-    insertFiles.clear();
-    try (CloseableIterable<CombinedScanTask> it =
-        getMixedTable().asKeyedTable().newScan().planTasks()) {
-      it.forEach(
-          cst ->
-              cst.tasks()
-                  .forEach(
-                      t -> {
-                        t.baseTasks().forEach(fileTask -> baseDataFiles.add(fileTask.file()));
-                        t.insertTasks().forEach(fileTask -> insertFiles.add(fileTask.file()));
+                        t.changeTasks().forEach(fileTask -> changeFiles.add(fileTask.file()));
                       }));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
 
     Assert.assertEquals(4, baseDataFiles.size());
-    Assert.assertEquals(4, insertFiles.size());
+    Assert.assertEquals(4, changeFiles.size());
     baseDataFiles.clear();
-    insertFiles.clear();
+    changeFiles.clear();
 
     // plan with partition filter
     try (CloseableIterable<CombinedScanTask> it =
@@ -151,17 +136,17 @@ public class TestKeyedExpressionUtil extends TableTestBase {
                   .forEach(
                       t -> {
                         t.baseTasks().forEach(fileTask -> baseDataFiles.add(fileTask.file()));
-                        t.insertTasks().forEach(fileTask -> insertFiles.add(fileTask.file()));
+                        t.changeTasks().forEach(fileTask -> changeFiles.add(fileTask.file()));
                       }));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     if (isPartitionedTable()) {
       Assert.assertEquals(2, baseDataFiles.size());
-      Assert.assertEquals(2, insertFiles.size());
+      Assert.assertEquals(2, changeFiles.size());
     } else {
       Assert.assertEquals(4, baseDataFiles.size());
-      Assert.assertEquals(4, insertFiles.size());
+      Assert.assertEquals(4, changeFiles.size());
     }
   }
 }

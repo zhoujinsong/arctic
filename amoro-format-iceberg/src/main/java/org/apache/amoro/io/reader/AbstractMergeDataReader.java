@@ -55,6 +55,8 @@ import java.util.function.Predicate;
 public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader<T> {
 
   private ChangeDataMap<T> changeDataMap;
+  // Reuse change data cache only for self-optimizing task
+  private final boolean reuseChangeDataCache;
 
   public AbstractMergeDataReader(
       AuthenticatedFileIO fileIO,
@@ -65,7 +67,8 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
       boolean reuseContainer,
-      StructLikeCollections structLikeCollections) {
+      StructLikeCollections structLikeCollections,
+      boolean reuseChangeDataCache) {
     super(
         fileIO,
         tableSchema,
@@ -76,6 +79,7 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
         convertConstant,
         reuseContainer,
         structLikeCollections);
+    this.reuseChangeDataCache = reuseChangeDataCache;
   }
 
   @Override
@@ -155,7 +159,7 @@ public abstract class AbstractMergeDataReader<T> extends AbstractKeyedDataReader
   private ChangeDataMap<T> constructChangeMap(
       KeyedTableScanTask keyedTableScanTask, Schema requiredSchema) {
     // Reuse change data map for self-optimizing process
-    if (changeDataMap != null) {
+    if (changeDataMap != null && reuseChangeDataCache) {
       return changeDataMap;
     }
     ChangeDataMap<T> changeMap =

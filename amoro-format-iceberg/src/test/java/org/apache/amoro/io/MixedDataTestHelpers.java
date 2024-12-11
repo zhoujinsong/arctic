@@ -285,7 +285,8 @@ public class MixedDataTestHelpers {
               true,
               IdentityPartitionConverters::convertConstant,
               false,
-              structLikeCollections);
+              structLikeCollections,
+              false);
     } else {
       throw new IllegalArgumentException("Unsupported merge function: " + mergeFunction);
     }

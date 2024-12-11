@@ -126,7 +126,8 @@ public class MixedIcebergOptimizingDataReader implements OptimizingDataReader {
               false,
               IdentityPartitionConverters::convertConstant,
               false,
-              structLikeCollections);
+              structLikeCollections,
+              true);
 
     } else {
       reader =

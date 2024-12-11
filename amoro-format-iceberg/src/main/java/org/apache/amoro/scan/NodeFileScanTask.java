@@ -22,6 +22,7 @@ import org.apache.amoro.data.DataFileType;
 import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.shade.guava32.com.google.common.base.MoreObjects;
 import org.apache.amoro.table.TableProperties;
+import org.apache.amoro.utils.FileScanTaskUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -166,12 +167,12 @@ public class NodeFileScanTask implements KeyedTableScanTask {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("baseTasks", baseTasks)
-        .add("insertTasks", insertTasks)
-        .add("deleteTasks", deleteTasks)
-        .add("changeTasks", changeTasks)
-        .add("treeNode", treeNode)
-        .add("includeChangeDataRecords", includeChangeDataRecords)
+        .add("\nbaseTasks", FileScanTaskUtil.toString(baseTasks))
+        .add("\ninsertTasks", FileScanTaskUtil.toString(insertTasks))
+        .add("\ndeleteTasks", FileScanTaskUtil.toString(deleteTasks))
+        .add("\nchangeTasks", FileScanTaskUtil.toString(changeTasks))
+        .add("\ntreeNode", treeNode)
+        .add("\nincludeChangeDataRecords", includeChangeDataRecords)
         .toString();
   }
 }
