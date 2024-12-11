@@ -38,7 +38,6 @@ import org.apache.amoro.scan.KeyedTableScan;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.table.KeyedTable;
-import org.apache.amoro.trino.MixedFormatSessionProperties;
 import org.apache.amoro.trino.MixedFormatTransactionManager;
 import org.apache.amoro.trino.util.MetricUtil;
 import org.apache.amoro.trino.util.ObjectSerializerUtil;
