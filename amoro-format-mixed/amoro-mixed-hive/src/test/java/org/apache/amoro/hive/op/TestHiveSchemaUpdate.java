@@ -72,8 +72,8 @@ public class TestHiveSchemaUpdate extends TableTestBase {
     Schema expectSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.required(2, "name", Types.StringType.get()),
-            Types.NestedField.required(3, "ts", Types.LongType.get()),
+            Types.NestedField.optional(2, "name", Types.StringType.get()),
+            Types.NestedField.optional(3, "ts", Types.LongType.get()),
             Types.NestedField.required(4, "op_time", Types.TimestampType.withoutZone()),
             Types.NestedField.required(
                 5,
@@ -93,8 +93,8 @@ public class TestHiveSchemaUpdate extends TableTestBase {
     Schema expectSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get(), "update doc"),
-            Types.NestedField.required(2, "name", Types.StringType.get()),
-            Types.NestedField.required(3, "ts", Types.LongType.get()),
+            Types.NestedField.optional(2, "name", Types.StringType.get()),
+            Types.NestedField.optional(3, "ts", Types.LongType.get()),
             Types.NestedField.required(4, "op_time", Types.TimestampType.withoutZone()),
             Types.NestedField.required(
                 5,
@@ -120,8 +120,8 @@ public class TestHiveSchemaUpdate extends TableTestBase {
     Schema expectSchema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.required(2, "name", Types.StringType.get()),
-            Types.NestedField.required(3, "ts", Types.LongType.get()),
+            Types.NestedField.optional(2, "name", Types.StringType.get()),
+            Types.NestedField.optional(3, "ts", Types.LongType.get()),
             Types.NestedField.required(4, "op_time", Types.TimestampType.withoutZone()),
             Types.NestedField.required(
                 5,
