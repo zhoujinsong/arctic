@@ -240,15 +240,12 @@ public class IcebergPageSourceProvider implements ConnectorPageSourceProvider {
     IcebergSplit icebergSplit = (IcebergSplit) connectorSplit;
     idToConstant.put(
         MetadataColumns.TRANSACTION_ID_FILED_ID,
-        Optional.ofNullable(icebergSplit.getTransactionId()).map(s -> s.toString()));
-    idToConstant.put(
-        MetadataColumns.CHANGE_ACTION_ID,
-        Optional.ofNullable(icebergSplit.getFileType())
-            .map(
-                s ->
-                    s == DataFileType.EQ_DELETE_FILE
-                        ? ChangeAction.DELETE.name()
-                        : ChangeAction.INSERT.name()));
+        Optional.ofNullable(icebergSplit.getTransactionId()).map(Object::toString));
+    if (DataFileType.EQ_DELETE_FILE.equals(icebergSplit.getFileType())) {
+      idToConstant.put(MetadataColumns.CHANGE_ACTION_ID, Optional.of(ChangeAction.DELETE.name()));
+    } else if (DataFileType.INSERT_FILE.equals(icebergSplit.getFileType())) {
+      idToConstant.put(MetadataColumns.CHANGE_ACTION_ID, Optional.of(ChangeAction.INSERT.name()));
+    }
     DateTimeZone dateTimeZone = UTC;
     if (connectorTable instanceof AdaptHiveIcebergTableHandle) {
       dateTimeZone = DateTimeZone.forID(TimeZone.getDefault().getID());
@@ -393,7 +390,7 @@ public class IcebergPageSourceProvider implements ConnectorPageSourceProvider {
         requiredColumns,
         dataPageSource.get(),
         projectionsAdapter,
-        //                Optional.of(deleteFilter).filter(filter -> filter.hasPosDeletes() ||
+        // Optional.of(deleteFilter).filter(filter -> filter.hasPosDeletes() ||
         // filter.hasEqDeletes()),
         // In order to be compatible with iceberg version 0.12
         useIcebergDelete ? Optional.of(deleteFilter) : Optional.empty(),

@@ -194,6 +194,7 @@ public class TestTableUtil {
     Set<DeleteFile> baseDeleteFiles = Sets.newHashSet();
     Set<DataFile> insertFiles = Sets.newHashSet();
     Set<DataFile> deleteFiles = Sets.newHashSet();
+    Set<DataFile> changeFiles = Sets.newHashSet();
 
     try (CloseableIterable<CombinedScanTask> it = table.newScan().planTasks()) {
       it.forEach(
@@ -208,8 +209,11 @@ public class TestTableUtil {
                                   baseDeleteFiles.addAll(fileTask.deletes());
                                 });
                         t.insertTasks().forEach(fileTask -> insertFiles.add(fileTask.file()));
+                        t.mixedEquityDeletes()
+                            .forEach(fileTask -> deleteFiles.add(fileTask.file()));
+                        t.changeTasks().forEach(changeTask -> changeFiles.add(changeTask.file()));
                       }));
-      return new TableFiles(baseDataFiles, baseDeleteFiles, insertFiles, deleteFiles);
+      return new TableFiles(baseDataFiles, baseDeleteFiles, insertFiles, deleteFiles, changeFiles);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

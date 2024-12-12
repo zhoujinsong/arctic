@@ -45,7 +45,7 @@ public class TestDropPartitionSQL extends MixedTableTestBase {
         Arguments.of(TableFormat.MIXED_ICEBERG, ""));
   }
 
-  @DisplayName("Test `test drop partiton`")
+  @DisplayName("Test `test drop partition`")
   @ParameterizedTest
   @MethodSource
   public void testDropPartition(TableFormat format, String primaryKeyDDL) {
@@ -76,7 +76,7 @@ public class TestDropPartitionSQL extends MixedTableTestBase {
     if (primaryKeyDDL.isEmpty()) {
       Assertions.assertEquals(2, files.baseDataFiles.size());
     } else {
-      Assertions.assertEquals(2, files.changeInsertFiles.size());
+      Assertions.assertEquals(2, files.changeFiles.size());
     }
     Assertions.assertEquals(2, sql.collectAsList().size());
   }

@@ -76,7 +76,7 @@ public class TestDropPartitionSQL extends MixedTableTestBase {
     if (primaryKeyDDL.isEmpty()) {
       Assertions.assertEquals(2, files.baseDataFiles.size());
     } else {
-      Assertions.assertEquals(2, files.changeInsertFiles.size());
+      Assertions.assertEquals(2, files.changeFiles.size());
     }
     Assertions.assertEquals(2, sql.collectAsList().size());
   }

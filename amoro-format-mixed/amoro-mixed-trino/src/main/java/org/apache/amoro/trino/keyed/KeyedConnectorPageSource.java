@@ -167,10 +167,11 @@ public class KeyedConnectorPageSource implements ConnectorPageSource {
       if (mixedDeleteFilter != null) {
         int positionCount = page.getPositionCount();
         int[] positionsToKeep = new int[positionCount];
-        try (CloseableIterable<TrinoRow> filteredRows =
-            mixedDeleteFilter.filter(
-                CloseableIterable.withNoopClose(
-                    TrinoRow.fromPage(requireColumnTypes, page, positionCount)))) {
+        CloseableIterable<TrinoRow> rows =
+            CloseableIterable.withNoopClose(
+                TrinoRow.fromPage(requireColumnTypes, page, positionCount));
+        try (CloseableIterable<TrinoRow> filteredRows = mixedDeleteFilter.filter(rows)) {
+
           int positionsToKeepCount = 0;
           for (TrinoRow rowToKeep : filteredRows) {
             positionsToKeep[positionsToKeepCount] = rowToKeep.getPosition();
