@@ -127,34 +127,44 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
                 2.0 /* exponential */)
             .throwFailureWhenFinished()
             .run(
-                file -> {
-                  table.io().deleteFile(file.path().toString());
-                });
+                file -> table.io().deleteFile(file.path().toString()));
       } finally {
-        tableBlockerManager.release(block);
+        if (block != null) {
+          tableBlockerManager.release(block);
+        }
       }
     }
 
-    public void checkBlocker(TableBlockerManager tableBlockerManager) {
-      List<String> blockerIds =
-          tableBlockerManager.getBlockers().stream()
-              .map(Blocker::blockerId)
-              .collect(Collectors.toList());
-      if (!blockerIds.contains(block.blockerId())) {
-        throw new IllegalStateException("block is not in blockerManager");
+    public void checkBlocker() {
+      if (block != null) {
+        List<String> blockerIds =
+            tableBlockerManager.getBlockers().stream()
+                .map(Blocker::blockerId)
+                .collect(Collectors.toList());
+        if (!blockerIds.contains(block.blockerId())) {
+          throw new IllegalStateException("block is not in blockerManager");
+        }
       }
     }
 
     public void getBlocker() {
-      this.tableBlockerManager = catalog.getTableBlockerManager(table.id());
-      ArrayList<BlockableOperation> operations = Lists.newArrayList();
-      operations.add(BlockableOperation.BATCH_WRITE);
-      operations.add(BlockableOperation.OPTIMIZE);
       try {
+        this.tableBlockerManager = catalog.getTableBlockerManager(table.id());
+        ArrayList<BlockableOperation> operations = Lists.newArrayList();
+        operations.add(BlockableOperation.BATCH_WRITE);
+        operations.add(BlockableOperation.OPTIMIZE);
         this.block = tableBlockerManager.block(operations);
+      } catch (UnsupportedOperationException e) {
+        // Ignore UnsupportedOperationException, blocker is not required for now.
       } catch (OperationConflictException e) {
         throw new IllegalStateException(
-            "failed to block table " + table.id() + " with " + operations, e);
+            "Failed to block table " + table.id(), e);
+      }
+    }
+
+    public void releaseBlocker() {
+      if(block != null) {
+        tableBlockerManager.release(block);
       }
     }
   }
@@ -169,13 +179,13 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       AppendFiles append = table.changeTable().newAppend();
       for (DataFile file : WriteTaskCommit.files(messages)) {
         append.appendFile(file);
       }
       append.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
@@ -189,7 +199,7 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       RewritePartitions rewritePartitions = table.newRewritePartitions();
       rewritePartitions.updateOptimizedSequenceDynamically(txId);
 
@@ -197,7 +207,7 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
         rewritePartitions.addDataFile(file);
       }
       rewritePartitions.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
@@ -216,7 +226,7 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       OverwriteBaseFiles overwriteBaseFiles = table.newOverwriteBaseFiles();
       overwriteBaseFiles.overwriteByRowFilter(overwriteExpr);
       overwriteBaseFiles.updateOptimizedSequenceDynamically(txId);
@@ -226,7 +236,7 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
         overwriteBaseFiles.addFile(file);
       }
       overwriteBaseFiles.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
@@ -240,13 +250,13 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       AppendFiles append = table.changeTable().newAppend();
       for (DataFile file : WriteTaskCommit.files(messages)) {
         append.appendFile(file);
       }
       append.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 

@@ -128,34 +128,44 @@ public class UnkeyedSparkBatchWrite
                 2.0 /* exponential */)
             .throwFailureWhenFinished()
             .run(
-                file -> {
-                  table.io().deleteFile(file.path().toString());
-                });
+                file -> table.io().deleteFile(file.path().toString()));
       } finally {
-        tableBlockerManager.release(block);
+        if (block != null) {
+          tableBlockerManager.release(block);
+        }
       }
     }
 
-    public void checkBlocker(TableBlockerManager tableBlockerManager) {
-      List<String> blockerIds =
-          tableBlockerManager.getBlockers().stream()
-              .map(Blocker::blockerId)
-              .collect(Collectors.toList());
-      if (!blockerIds.contains(block.blockerId())) {
-        throw new IllegalStateException("block is not in blockerManager");
+    public void checkBlocker() {
+      if (block != null) {
+        List<String> blockerIds =
+            tableBlockerManager.getBlockers().stream()
+                .map(Blocker::blockerId)
+                .collect(Collectors.toList());
+        if (!blockerIds.contains(block.blockerId())) {
+          throw new IllegalStateException("block is not in blockerManager");
+        }
       }
     }
 
     public void getBlocker() {
-      this.tableBlockerManager = catalog.getTableBlockerManager(table.id());
-      ArrayList<BlockableOperation> operations = Lists.newArrayList();
-      operations.add(BlockableOperation.BATCH_WRITE);
-      operations.add(BlockableOperation.OPTIMIZE);
       try {
+        this.tableBlockerManager = catalog.getTableBlockerManager(table.id());
+        ArrayList<BlockableOperation> operations = Lists.newArrayList();
+        operations.add(BlockableOperation.BATCH_WRITE);
+        operations.add(BlockableOperation.OPTIMIZE);
         this.block = tableBlockerManager.block(operations);
+      } catch (UnsupportedOperationException e) {
+        // Ignore UnsupportedOperationException, blocker is not required for now.
       } catch (OperationConflictException e) {
         throw new IllegalStateException(
-            "failed to block table " + table.id() + " with " + operations, e);
+            "Failed to block table " + table.id(), e);
+      }
+    }
+
+    public void releaseBlocker() {
+      if(block != null) {
+        tableBlockerManager.release(block);
       }
     }
   }
@@ -170,13 +180,13 @@ public class UnkeyedSparkBatchWrite
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       AppendFiles appendFiles = table.newAppend();
       for (DataFile file : WriteTaskCommit.files(messages)) {
         appendFiles.appendFile(file);
       }
       appendFiles.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
@@ -190,13 +200,13 @@ public class UnkeyedSparkBatchWrite
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       ReplacePartitions replacePartitions = table.newReplacePartitions();
       for (DataFile file : WriteTaskCommit.files(messages)) {
         replacePartitions.addFile(file);
       }
       replacePartitions.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
@@ -215,7 +225,7 @@ public class UnkeyedSparkBatchWrite
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       OverwriteFiles overwriteFiles = table.newOverwrite();
       overwriteFiles.overwriteByRowFilter(overwriteExpr);
       overwriteFiles.set(DELETE_UNTRACKED_HIVE_FILE, "true");
@@ -223,7 +233,7 @@ public class UnkeyedSparkBatchWrite
         overwriteFiles.addFile(file);
       }
       overwriteFiles.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
@@ -236,7 +246,7 @@ public class UnkeyedSparkBatchWrite
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
-      checkBlocker(tableBlockerManager);
+      checkBlocker();
       RowDelta rowDelta = table.newRowDelta();
       if (WriteTaskCommit.deleteFiles(messages).iterator().hasNext()) {
         for (DeleteFile file : WriteTaskCommit.deleteFiles(messages)) {
@@ -249,7 +259,7 @@ public class UnkeyedSparkBatchWrite
         }
       }
       rowDelta.commit();
-      tableBlockerManager.release(block);
+      releaseBlocker();
     }
   }
 
