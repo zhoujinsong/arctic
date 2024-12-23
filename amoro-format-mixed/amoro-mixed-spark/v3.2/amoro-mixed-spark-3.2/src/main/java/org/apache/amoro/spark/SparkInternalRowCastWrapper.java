@@ -85,7 +85,8 @@ public class SparkInternalRowCastWrapper extends GenericInternalRow {
 
   @Override
   public boolean isNullAt(int ordinal) {
-    List<DataType> dataTypeList = Arrays.stream(schema.fields()).map(StructField::dataType).collect(Collectors.toList());
+    List<DataType> dataTypeList =
+        Arrays.stream(schema.fields()).map(StructField::dataType).collect(Collectors.toList());
     return row.get(ordinal, dataTypeList.get(ordinal)) == null;
   }
 

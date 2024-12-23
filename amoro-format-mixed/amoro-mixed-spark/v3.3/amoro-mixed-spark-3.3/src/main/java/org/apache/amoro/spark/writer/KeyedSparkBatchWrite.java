@@ -126,8 +126,7 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
                     props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
                 2.0 /* exponential */)
             .throwFailureWhenFinished()
-            .run(
-                file -> table.io().deleteFile(file.path().toString()));
+            .run(file -> table.io().deleteFile(file.path().toString()));
       } finally {
         if (block != null) {
           tableBlockerManager.release(block);
@@ -157,13 +156,12 @@ public class KeyedSparkBatchWrite implements MixedFormatSparkWriteBuilder.MixedF
       } catch (UnsupportedOperationException e) {
         // Ignore UnsupportedOperationException, blocker is not required for now.
       } catch (OperationConflictException e) {
-        throw new IllegalStateException(
-            "Failed to block table " + table.id(), e);
+        throw new IllegalStateException("Failed to block table " + table.id(), e);
       }
     }
 
     public void releaseBlocker() {
-      if(block != null) {
+      if (block != null) {
         tableBlockerManager.release(block);
       }
     }
