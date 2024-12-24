@@ -187,7 +187,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   }
 
   ChangeAction mixedFormatChangeAction(RowData rowData) {
-    return ChangeAction.valueOf(rowData.getString(changeActionIndex).toString());
+    return ChangeAction.fromByteValue((byte) rowData.getInt(changeActionIndex));
   }
 
   /**

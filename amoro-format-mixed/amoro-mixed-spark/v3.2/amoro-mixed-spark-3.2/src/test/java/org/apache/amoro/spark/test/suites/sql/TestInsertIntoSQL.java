@@ -160,7 +160,7 @@ public class TestInsertIntoSQL extends MixedTableTestBase {
               .map(
                   r ->
                       TestTableUtil.extendMetadataValue(
-                          r, MetadataColumns.CHANGE_ACTION_FIELD, ChangeAction.INSERT.name()))
+                          r, MetadataColumns.CHANGE_ACTION_FIELD, (int) ChangeAction.INSERT.toByteValue()))
               .collect(Collectors.toList());
 
       List<Record> changes = TestTableUtil.changeRecordsWithAction(table.asKeyedTable());

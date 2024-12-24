@@ -146,11 +146,9 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
           CloseableIterable.filter(
               changeRecords,
               record -> {
-                ChangeAction changeAction =
-                    ChangeAction.valueOf(
-                        (String) changeActionAccessor.get(asStructLike.apply(record)));
-                return changeAction.equals(ChangeAction.INSERT)
-                    || changeAction.equals(ChangeAction.UPDATE_AFTER);
+                int changeActionCode = (int) changeActionAccessor.get(asStructLike.apply(record));
+                //Change action is INSERT or UPDATE_AFTER
+                return changeActionCode == 0 || changeActionCode == 2;
               });
       if (changeNodeFilter.isPresent()) {
         changeRecords = changeNodeFilter.get().filter(changeRecords);

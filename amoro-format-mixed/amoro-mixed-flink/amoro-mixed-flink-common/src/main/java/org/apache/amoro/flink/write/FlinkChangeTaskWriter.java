@@ -84,7 +84,7 @@ public class FlinkChangeTaskWriter extends ChangeTaskWriter<RowData> {
   @Override
   protected RowData appendMetaColumns(RowData data, Long fileOffset) {
     return new JoinedRowData(
-        data, GenericRowData.of(fileOffset, StringData.fromString(action(data).name())));
+        data, GenericRowData.of(fileOffset, (int) action(data).toByteValue()));
   }
 
   @Override
