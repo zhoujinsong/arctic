@@ -18,7 +18,6 @@
 
 package org.apache.amoro.io.reader;
 
-import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.scan.NodeFileScanTask;
@@ -147,7 +146,7 @@ public abstract class AbstractReplaceDataReader<T> extends AbstractKeyedDataRead
               changeRecords,
               record -> {
                 int changeActionCode = (int) changeActionAccessor.get(asStructLike.apply(record));
-                //Change action is INSERT or UPDATE_AFTER
+                // Change action is INSERT or UPDATE_AFTER
                 return changeActionCode == 0 || changeActionCode == 2;
               });
       if (changeNodeFilter.isPresent()) {

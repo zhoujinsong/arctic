@@ -516,7 +516,8 @@ public class MixedDataTestHelpers {
                     nestedField.name(), sourceRecord.getField(nestedField.name())));
     expectRecord.setField(MetadataColumns.TRANSACTION_ID_FILED_NAME, transactionId);
     expectRecord.setField(MetadataColumns.FILE_OFFSET_FILED_NAME, offset);
-    expectRecord.setField(MetadataColumns.CHANGE_ACTION_NAME, (int) sourceRecord.getAction().toByteValue());
+    expectRecord.setField(
+        MetadataColumns.CHANGE_ACTION_NAME, (int) sourceRecord.getAction().toByteValue());
     return expectRecord;
   }
 
