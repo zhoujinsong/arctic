@@ -58,8 +58,9 @@ public class MergeOnReadSplit extends MixedFormatSplit {
   @Override
   public String splitId() {
     return MoreObjects.toStringHelper(this)
-        .add("insertTasks", FileScanTaskUtil.toString(keyedTableScanTask.insertTasks()))
         .add("baseTasks", FileScanTaskUtil.toString(keyedTableScanTask.baseTasks()))
+        .add("changeTasks", FileScanTaskUtil.toString(keyedTableScanTask.changeTasks()))
+        .add("insertTasks", FileScanTaskUtil.toString(keyedTableScanTask.insertTasks()))
         .add(
             "mixedFormatEquityDeletes",
             FileScanTaskUtil.toString(keyedTableScanTask.mixedEquityDeletes()))

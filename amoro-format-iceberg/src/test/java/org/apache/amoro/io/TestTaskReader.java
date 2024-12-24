@@ -55,7 +55,7 @@ public class TestTaskReader extends TableDataTestBase {
 
   private final boolean useDiskMap;
 
-  @Parameterized.Parameters(name = "useDiskMap = {2}")
+  @Parameterized.Parameters(name = "{0}, {1}, useDiskMap = {2}")
   public static Object[] parameters() {
     return new Object[][] {
       {

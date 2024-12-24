@@ -48,7 +48,8 @@ public class TestBaseCombinedScanTask {
         new BasicMixedFileScanTask(keyedFile, null, PartitionSpec.unpartitioned(), null);
 
     BaseCombinedScanTask baseCombinedScanTask =
-        new BaseCombinedScanTask(new NodeFileScanTask(Collections.singletonList(task)));
+        new BaseCombinedScanTask(
+            new NodeFileScanTask(keyedFile.node(), Collections.singletonList(task)));
     String expected =
         "BaseCombinedScanTask{\n"
             + "tasks=NodeFileScanTask{\n"
@@ -61,7 +62,10 @@ public class TestBaseCombinedScanTask {
             + "\t\ttransactionId=2, \n"
             + "\t\tfileSizeInBytes=10, \n"
             + "\t\trecordCount=100}], \n"
-            + "\tdeleteFiles=[]}}";
+            + "\tdeleteTasks=[], \n"
+            + "\tchangeTasks=[], \n"
+            + "\ttreeNode=TreeNode(0,0), \n"
+            + "\tincludeChangeDataRecords=true}}";
     Assert.assertEquals(expected, baseCombinedScanTask.toString());
   }
 }

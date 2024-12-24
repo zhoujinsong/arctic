@@ -99,61 +99,6 @@ public class TestInsertIntoSQL extends MixedTableTestBase {
       Comparator.comparing(r -> (String) r.getField(MetadataColumns.CHANGE_ACTION_NAME));
   Comparator<Record> comparator = pkComparator.thenComparing(dataComparator);
 
-  public static Stream<Arguments> testNoUpsert() {
-    return Stream.of(
-            Arguments.of(MIXED_HIVE, SCHEMA, ID_PRIMARY_KEY_SPEC, PT_SPEC),
-            Arguments.of(MIXED_HIVE, SCHEMA, NO_PRIMARY_KEY, PT_SPEC),
-            Arguments.of(MIXED_HIVE, SCHEMA, ID_PRIMARY_KEY_SPEC, UNPARTITIONED),
-            Arguments.of(MIXED_HIVE, SCHEMA, NO_PRIMARY_KEY, UNPARTITIONED),
-            Arguments.of(MIXED_ICEBERG, SCHEMA, ID_PRIMARY_KEY_SPEC, PT_SPEC),
-            Arguments.of(MIXED_ICEBERG, SCHEMA, NO_PRIMARY_KEY, PT_SPEC),
-            Arguments.of(MIXED_ICEBERG, SCHEMA, ID_PRIMARY_KEY_SPEC, UNPARTITIONED),
-            Arguments.of(MIXED_ICEBERG, SCHEMA, NO_PRIMARY_KEY, UNPARTITIONED))
-        .flatMap(
-            e -> {
-              List parquet = Lists.newArrayList(e.get());
-              parquet.add(FileFormat.PARQUET);
-              List orc = Lists.newArrayList(e.get());
-              orc.add(FileFormat.ORC);
-              return Stream.of(Arguments.of(parquet.toArray()), Arguments.of(orc.toArray()));
-            });
-  }
-
-  @DisplayName("TestSQL: INSERT INTO table without upsert")
-  @ParameterizedTest
-  @MethodSource
-  public void testNoUpsert(
-      TableFormat format,
-      Schema schema,
-      PrimaryKeySpec keySpec,
-      PartitionSpec ptSpec,
-      FileFormat fileFormat) {
-    MixedTable table =
-        createTarget(
-            schema,
-            tableBuilder ->
-                tableBuilder
-                    .withPrimaryKeySpec(keySpec)
-                    .withProperty(TableProperties.UPSERT_ENABLED, "false")
-                    .withProperty(TableProperties.CHANGE_FILE_FORMAT, fileFormat.name())
-                    .withProperty(TableProperties.BASE_FILE_FORMAT, fileFormat.name())
-                    .withPartitionSpec(ptSpec));
-
-    createViewSource(schema, source);
-
-    TestTableUtil.writeToBase(table, base);
-    sql("INSERT INTO " + target() + " SELECT * FROM " + source());
-    table.refresh();
-
-    // mor result
-    List<Record> results = TestTableUtil.tableRecords(table);
-    List<Record> expects = Lists.newArrayList();
-    expects.addAll(base);
-    expects.addAll(source);
-
-    DataComparator.build(expects, results).ignoreOrder(comparator).assertRecordsEqual();
-  }
-
   public static Stream<Arguments> testUpsert() {
     return Stream.of(
             Arguments.of(MIXED_HIVE, SCHEMA, ID_PRIMARY_KEY_SPEC, PT_SPEC),
@@ -166,9 +111,9 @@ public class TestInsertIntoSQL extends MixedTableTestBase {
             Arguments.of(MIXED_ICEBERG, SCHEMA, NO_PRIMARY_KEY, UNPARTITIONED))
         .flatMap(
             e -> {
-              List parquet = Lists.newArrayList(e.get());
+              List<Object> parquet = Lists.newArrayList(e.get());
               parquet.add(FileFormat.PARQUET);
-              List orc = Lists.newArrayList(e.get());
+              List<Object> orc = Lists.newArrayList(e.get());
               orc.add(FileFormat.ORC);
               return Stream.of(Arguments.of(parquet.toArray()), Arguments.of(orc.toArray()));
             });
@@ -189,7 +134,6 @@ public class TestInsertIntoSQL extends MixedTableTestBase {
             tableBuilder ->
                 tableBuilder
                     .withPrimaryKeySpec(keySpec)
-                    .withProperty(TableProperties.UPSERT_ENABLED, "true")
                     .withProperty(TableProperties.CHANGE_FILE_FORMAT, fileFormat.name())
                     .withProperty(TableProperties.BASE_FILE_FORMAT, fileFormat.name())
                     .withPartitionSpec(ptSpec));
@@ -211,23 +155,15 @@ public class TestInsertIntoSQL extends MixedTableTestBase {
     DataComparator.build(expects, results).ignoreOrder(comparator).assertRecordsEqual();
 
     if (table.isKeyedTable()) {
-      List<Record> deletes =
-          ExpectResultUtil.upsertDeletes(base, source, r -> r.get(0, Integer.class));
-
       List<Record> expectChanges =
-          deletes.stream()
+          source.stream()
               .map(
                   r ->
                       TestTableUtil.extendMetadataValue(
-                          r, MetadataColumns.CHANGE_ACTION_FIELD, ChangeAction.DELETE.name()))
+                          r,
+                          MetadataColumns.CHANGE_ACTION_FIELD,
+                          (int) ChangeAction.INSERT.toByteValue()))
               .collect(Collectors.toList());
-
-      source.stream()
-          .map(
-              r ->
-                  TestTableUtil.extendMetadataValue(
-                      r, MetadataColumns.CHANGE_ACTION_FIELD, ChangeAction.INSERT.name()))
-          .forEach(expectChanges::add);
 
       List<Record> changes = TestTableUtil.changeRecordsWithAction(table.asKeyedTable());
 

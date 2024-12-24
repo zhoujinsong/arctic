@@ -19,6 +19,7 @@
 package org.apache.amoro.spark.reader;
 
 import org.apache.amoro.io.AuthenticatedFileIO;
+import org.apache.amoro.io.reader.AbstractKeyedDataReader;
 import org.apache.amoro.scan.CombinedScanTask;
 import org.apache.amoro.scan.KeyedTableScan;
 import org.apache.amoro.scan.KeyedTableScanTask;
@@ -27,6 +28,7 @@ import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
 import org.apache.amoro.spark.util.Stats;
 import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.PrimaryKeySpec;
+import org.apache.amoro.utils.PropertyUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
@@ -197,21 +199,35 @@ public class KeyedSparkBatchScan implements Scan, Batch, SupportsReportStatistic
 
   private static class RowReader implements PartitionReader<InternalRow> {
 
-    SparkKeyedDataReader reader;
+    AbstractKeyedDataReader<InternalRow> reader;
     Iterator<KeyedTableScanTask> scanTasks;
     KeyedTableScanTask currentScanTask;
     CloseableIterator<InternalRow> currentIterator = CloseableIterator.empty();
     InternalRow current;
 
     RowReader(MixedFormatInputPartition task) {
-      reader =
-          new SparkKeyedDataReader(
-              task.io,
-              task.tableSchema,
-              task.expectedSchema,
-              task.keySpec,
-              task.nameMapping,
-              task.caseSensitive);
+      if (org.apache.amoro.table.TableProperties.MERGE_FUNCTION_REPLACE.equals(
+          task.mergeFunction)) {
+        reader =
+            new SparkReplaceDataReader(
+                task.io,
+                task.tableSchema,
+                task.expectedSchema,
+                task.keySpec,
+                task.nameMapping,
+                task.caseSensitive);
+      } else if (org.apache.amoro.table.TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE.equals(
+          task.mergeFunction)) {
+        reader =
+            new SparkMergeDataReader(
+                task.io,
+                task.tableSchema,
+                task.expectedSchema,
+                task.keySpec,
+                task.nameMapping,
+                task.caseSensitive);
+      }
+
       scanTasks = task.combinedScanTask.tasks().iterator();
     }
 
@@ -254,6 +270,7 @@ public class KeyedSparkBatchScan implements Scan, Batch, SupportsReportStatistic
     final Schema tableSchema;
     final PrimaryKeySpec keySpec;
     final String nameMapping;
+    final String mergeFunction;
 
     MixedFormatInputPartition(
         CombinedScanTask combinedScanTask,
@@ -267,6 +284,11 @@ public class KeyedSparkBatchScan implements Scan, Batch, SupportsReportStatistic
       this.io = table.io();
       this.keySpec = table.primaryKeySpec();
       this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+      this.mergeFunction =
+          PropertyUtil.propertyAsString(
+              table.properties(),
+              org.apache.amoro.table.TableProperties.MERGE_FUNCTION,
+              org.apache.amoro.table.TableProperties.MERGE_FUNCTION_DEFAULT);
     }
   }
 }

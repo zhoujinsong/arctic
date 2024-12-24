@@ -16,10 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.amoro.io.reader;
+package org.apache.amoro.hive.io.reader;
 
-import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.io.AuthenticatedFileIO;
+import org.apache.amoro.io.reader.GenericMergeDataReader;
+import org.apache.amoro.io.reader.MergeFunction;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.Schema;
@@ -27,7 +28,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.data.parquet.AdaptHiveGenericParquetReaders;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.types.Type;
@@ -35,33 +36,12 @@ import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-/** Implementation of {@link AbstractKeyedDataReader} with record type {@link Record}. */
-public class GenericKeyedDataReader extends AbstractKeyedDataReader<Record> {
+public class MixedHiveGenericMergeDataReader extends AbstractMixedHiveMergeDataReader<Record> {
 
-  public GenericKeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        false);
-  }
-
-  public GenericKeyedDataReader(
+  public MixedHiveGenericMergeDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
@@ -69,9 +49,9 @@ public class GenericKeyedDataReader extends AbstractKeyedDataReader<Record> {
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
       boolean reuseContainer,
-      StructLikeCollections structLikeCollections) {
+      StructLikeCollections structLikeCollections,
+      boolean reuseChangeDataCache) {
     super(
         fileIO,
         tableSchema,
@@ -80,37 +60,16 @@ public class GenericKeyedDataReader extends AbstractKeyedDataReader<Record> {
         nameMapping,
         caseSensitive,
         convertConstant,
-        sourceNodes,
         reuseContainer,
-        structLikeCollections);
-  }
-
-  public GenericKeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        primaryKeySpec,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        sourceNodes,
-        reuseContainer);
+        structLikeCollections,
+        reuseChangeDataCache);
   }
 
   @Override
   protected Function<MessageType, ParquetValueReader<?>> getParquetReaderFunction(
       Schema projectSchema, Map<Integer, ?> idToConstant) {
-    return fileSchema -> GenericParquetReaders.buildReader(projectSchema, fileSchema, idToConstant);
+    return fileSchema ->
+        AdaptHiveGenericParquetReaders.buildReader(projectSchema, fileSchema, idToConstant);
   }
 
   @Override
@@ -125,5 +84,15 @@ public class GenericKeyedDataReader extends AbstractKeyedDataReader<Record> {
       final InternalRecordWrapper wrapper = new InternalRecordWrapper(schema.asStruct());
       return wrapper::copyFor;
     };
+  }
+
+  @Override
+  protected MergeFunction<Record> mergeFunction() {
+    return GenericMergeDataReader.PartialUpdateMergeFunction.getInstance();
+  }
+
+  @Override
+  protected Function<Schema, Function<Record, StructLike>> toNonResueStructLikeFunction() {
+    return toStructLikeFunction();
   }
 }

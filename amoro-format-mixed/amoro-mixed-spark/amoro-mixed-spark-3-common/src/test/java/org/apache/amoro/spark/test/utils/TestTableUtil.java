@@ -19,8 +19,8 @@
 package org.apache.amoro.spark.test.utils;
 
 import org.apache.amoro.data.ChangeAction;
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericKeyedDataReader;
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericUnkeyedDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericReplaceDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericUnkeyedDataReader;
 import org.apache.amoro.hive.table.SupportHive;
 import org.apache.amoro.io.MixedDataTestHelpers;
 import org.apache.amoro.io.reader.GenericUnkeyedDataReader;
@@ -194,6 +194,7 @@ public class TestTableUtil {
     Set<DeleteFile> baseDeleteFiles = Sets.newHashSet();
     Set<DataFile> insertFiles = Sets.newHashSet();
     Set<DataFile> deleteFiles = Sets.newHashSet();
+    Set<DataFile> changeFiles = Sets.newHashSet();
 
     try (CloseableIterable<CombinedScanTask> it = table.newScan().planTasks()) {
       it.forEach(
@@ -210,8 +211,9 @@ public class TestTableUtil {
                         t.insertTasks().forEach(fileTask -> insertFiles.add(fileTask.file()));
                         t.mixedEquityDeletes()
                             .forEach(fileTask -> deleteFiles.add(fileTask.file()));
+                        t.changeTasks().forEach(changeTask -> changeFiles.add(changeTask.file()));
                       }));
-      return new TableFiles(baseDataFiles, baseDeleteFiles, insertFiles, deleteFiles);
+      return new TableFiles(baseDataFiles, baseDeleteFiles, insertFiles, deleteFiles, changeFiles);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -250,8 +252,8 @@ public class TestTableUtil {
   }
 
   public static List<Record> unkeyedTableRecords(UnkeyedTable table, Expression expression) {
-    AdaptHiveGenericUnkeyedDataReader reader =
-        new AdaptHiveGenericUnkeyedDataReader(
+    MixedHiveGenericUnkeyedDataReader reader =
+        new MixedHiveGenericUnkeyedDataReader(
             table.io(),
             table.schema(),
             table.schema(),
@@ -284,15 +286,17 @@ public class TestTableUtil {
   }
 
   public static List<Record> readKeyedTable(KeyedTable keyedTable, Expression expression) {
-    AdaptHiveGenericKeyedDataReader reader =
-        new AdaptHiveGenericKeyedDataReader(
+    MixedHiveGenericReplaceDataReader reader =
+        new MixedHiveGenericReplaceDataReader(
             keyedTable.io(),
             keyedTable.schema(),
             keyedTable.schema(),
             keyedTable.primaryKeySpec(),
             null,
             true,
-            IdentityPartitionConverters::convertConstant);
+            IdentityPartitionConverters::convertConstant,
+            false,
+            null);
     List<Record> result = Lists.newArrayList();
     try (CloseableIterable<CombinedScanTask> combinedScanTasks =
         keyedTable.newScan().filter(expression).planTasks()) {

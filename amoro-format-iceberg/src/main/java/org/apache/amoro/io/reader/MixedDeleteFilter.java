@@ -47,7 +47,6 @@ import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -113,49 +112,28 @@ public abstract class MixedDeleteFilter<T> {
       KeyedTableScanTask keyedTableScanTask,
       Schema tableSchema,
       Schema requestedSchema,
-      PrimaryKeySpec primaryKeySpec) {
-    this(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, null);
-  }
-
-  protected MixedDeleteFilter(
-      KeyedTableScanTask keyedTableScanTask,
-      Schema tableSchema,
-      Schema requestedSchema,
       PrimaryKeySpec primaryKeySpec,
       Set<DataTreeNode> sourceNodes,
       StructLikeCollections structLikeCollections) {
-    this(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, sourceNodes);
-    this.structLikeCollections = structLikeCollections;
-  }
-
-  protected MixedDeleteFilter(
-      KeyedTableScanTask keyedTableScanTask,
-      Schema tableSchema,
-      Schema requestedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      Set<DataTreeNode> sourceNodes) {
     this.eqDeletes =
-        keyedTableScanTask.mixedEquityDeletes().stream()
+        keyedTableScanTask.deleteTasks().stream()
             .map(MixedFileScanTask::file)
             .collect(Collectors.toSet());
 
-    Map<String, DeleteFile> map = new HashMap<>();
-    for (MixedFileScanTask mixedFileScanTask : keyedTableScanTask.dataTasks()) {
+    Map<String, DeleteFile> posDeleteMap = new HashMap<>();
+    for (MixedFileScanTask mixedFileScanTask : keyedTableScanTask.baseTasks()) {
       for (DeleteFile deleteFile : mixedFileScanTask.deletes()) {
-        map.putIfAbsent(deleteFile.path().toString(), deleteFile);
+        posDeleteMap.putIfAbsent(deleteFile.path().toString(), deleteFile);
       }
     }
-    this.posDeletes = new ArrayList<>(map.values());
+    this.posDeletes = new ArrayList<>(posDeleteMap.values());
 
     this.pathSets =
         keyedTableScanTask.dataTasks().stream()
             .map(s -> s.file().path().toString())
             .collect(Collectors.toSet());
 
-    this.primaryKeyId =
-        primaryKeySpec.primaryKeyStruct().fields().stream()
-            .map(Types.NestedField::fieldId)
-            .collect(Collectors.toSet());
+    this.primaryKeyId = primaryKeySpec.primaryKeyIds();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, eqDeletes, posDeletes);
     this.deleteSchema =
         TypeUtil.join(
@@ -182,6 +160,9 @@ public abstract class MixedDeleteFilter<T> {
         requiredSchema.accessorForField(org.apache.iceberg.MetadataColumns.ROW_POSITION.fieldId());
     this.filePathAccessor =
         requiredSchema.accessorForField(org.apache.iceberg.MetadataColumns.FILE_PATH.fieldId());
+    if (structLikeCollections != null) {
+      this.structLikeCollections = structLikeCollections;
+    }
   }
 
   public Schema requiredSchema() {
@@ -211,10 +192,13 @@ public abstract class MixedDeleteFilter<T> {
         apply(apply(records, applyPosDeletes().negate()), applyEqDeletes().negate()), eqPredicate);
   }
 
+  public Predicate<T> deletedPredicate() {
+    return applyEqDeletes().or(applyPosDeletes());
+  }
+
   /** @return The data in equity delete file */
   public CloseableIterable<T> filterNegate(CloseableIterable<T> records) {
-    return new CloseableIterableWrapper<>(
-        apply(records, applyEqDeletes().or(applyPosDeletes())), eqPredicate);
+    return new CloseableIterableWrapper<>(apply(records, deletedPredicate()), eqPredicate);
   }
 
   public void setCurrentDataPath(String currentDataPath) {
@@ -300,23 +284,6 @@ public abstract class MixedDeleteFilter<T> {
     return isInDeleteSet;
   }
 
-  private CloseableIterable<T> applyEqDeletes(
-      CloseableIterable<T> records, Predicate<T> predicate) {
-    if (eqDeletes.isEmpty()) {
-      return records;
-    }
-
-    Filter<T> remainingRowsFilter =
-        new Filter<T>() {
-          @Override
-          protected boolean shouldKeep(T item) {
-            return predicate.test(item);
-          }
-        };
-
-    return remainingRowsFilter.filter(records);
-  }
-
   private CloseableIterable<Record> openDeletes(PrimaryKeyedFile deleteFile) {
     InputFile input = getInputFile(deleteFile.path().toString());
     Map<Integer, Object> idToConstant = new HashMap<>();
@@ -342,7 +309,7 @@ public abstract class MixedDeleteFilter<T> {
       default:
         throw new UnsupportedOperationException(
             String.format(
-                "Cannot read deletes, %s is not a supported format: %s",
+                "Cannot read insert file, %s is not a supported format: %s",
                 deleteFile.format().name(), deleteFile.path()));
     }
   }
@@ -369,18 +336,12 @@ public abstract class MixedDeleteFilter<T> {
     if (positionMap == null) {
       positionMap = new HashMap<>();
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-      CloseableIterator<Record> iterator = CloseableIterable.concat(deletes).iterator();
-      while (iterator.hasNext()) {
-        Record deleteRecord = iterator.next();
+      for (Record deleteRecord : CloseableIterable.concat(deletes)) {
         String path = FILENAME_ACCESSOR.get(deleteRecord).toString();
         if (!pathSets.contains(path)) {
           continue;
         }
-        Set<Long> posSet = positionMap.get(path);
-        if (posSet == null) {
-          posSet = new HashSet<>();
-          positionMap.put(path, posSet);
-        }
+        Set<Long> posSet = positionMap.computeIfAbsent(path, k -> new HashSet<>());
         posSet.add((Long) POSITION_ACCESSOR.get(deleteRecord));
       }
     }
@@ -458,6 +419,7 @@ public abstract class MixedDeleteFilter<T> {
       Schema requestedSchema,
       Collection<PrimaryKeyedFile> eqDeletes,
       Collection<DeleteFile> posDeletes) {
+
     if (eqDeletes.isEmpty() && posDeletes.isEmpty()) {
       return requestedSchema;
     }

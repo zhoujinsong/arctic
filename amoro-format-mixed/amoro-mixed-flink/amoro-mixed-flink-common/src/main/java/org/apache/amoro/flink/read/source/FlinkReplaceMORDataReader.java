@@ -16,18 +16,19 @@
  * limitations under the License.
  */
 
-package org.apache.amoro.hive.io.reader;
+package org.apache.amoro.flink.read.source;
 
-import org.apache.amoro.data.DataTreeNode;
+import org.apache.amoro.flink.read.AdaptHiveFlinkParquetReaders;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.table.PrimaryKeySpec;
-import org.apache.amoro.utils.map.StructLikeCollections;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.AdaptHiveGenericParquetReaders;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.data.FlinkOrcReader;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.types.Type;
@@ -35,51 +36,11 @@ import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedDataReader<Record> {
-
-  public AdaptHiveGenericUnkeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer,
-      StructLikeCollections structLikeCollections) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        reuseContainer,
-        structLikeCollections);
-  }
-
-  public AdaptHiveGenericUnkeyedDataReader(
-      AuthenticatedFileIO fileIO,
-      Schema tableSchema,
-      Schema projectedSchema,
-      String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer) {
-    super(
-        fileIO,
-        tableSchema,
-        projectedSchema,
-        nameMapping,
-        caseSensitive,
-        convertConstant,
-        reuseContainer);
-  }
-
-  public AdaptHiveGenericUnkeyedDataReader(
+public class FlinkReplaceMORDataReader extends AbstractMixedHiveReplaceDataReader<RowData> {
+  public FlinkReplaceMORDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
@@ -87,7 +48,6 @@ public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedD
       String nameMapping,
       boolean caseSensitive,
       BiFunction<Type, Object, Object> convertConstant,
-      Set<DataTreeNode> sourceNodes,
       boolean reuseContainer) {
     super(
         fileIO,
@@ -97,28 +57,29 @@ public class AdaptHiveGenericUnkeyedDataReader extends AbstractAdaptHiveUnkeyedD
         nameMapping,
         caseSensitive,
         convertConstant,
-        sourceNodes,
-        reuseContainer);
+        reuseContainer,
+        null);
   }
 
   @Override
   protected Function<MessageType, ParquetValueReader<?>> getParquetReaderFunction(
-      Schema projectedSchema, Map<Integer, ?> idToConstant) {
+      Schema projectSchema, Map<Integer, ?> idToConstant) {
     return fileSchema ->
-        AdaptHiveGenericParquetReaders.buildReader(projectedSchema, fileSchema, idToConstant);
+        AdaptHiveFlinkParquetReaders.buildReader(projectSchema, fileSchema, idToConstant);
   }
 
   @Override
   protected Function<TypeDescription, OrcRowReader<?>> getOrcReaderFunction(
       Schema projectSchema, Map<Integer, ?> idToConstant) {
-    return fileSchema -> new GenericOrcReader(projectSchema, fileSchema, idToConstant);
+    return fileSchema -> new FlinkOrcReader(projectSchema, fileSchema, idToConstant);
   }
 
   @Override
-  protected Function<Schema, Function<Record, StructLike>> toStructLikeFunction() {
+  protected Function<Schema, Function<RowData, StructLike>> toStructLikeFunction() {
     return schema -> {
-      final InternalRecordWrapper wrapper = new InternalRecordWrapper(schema.asStruct());
-      return wrapper::copyFor;
+      RowType requiredRowType = FlinkSchemaUtil.convert(schema);
+      RowDataWrapper asStructLike = new RowDataWrapper(requiredRowType, schema.asStruct());
+      return asStructLike::wrap;
     };
   }
 }

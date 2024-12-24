@@ -38,7 +38,6 @@ import org.apache.amoro.scan.KeyedTableScan;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.table.KeyedTable;
-import org.apache.amoro.trino.MixedFormatSessionProperties;
 import org.apache.amoro.trino.MixedFormatTransactionManager;
 import org.apache.amoro.trino.util.MetricUtil;
 import org.apache.amoro.trino.util.ObjectSerializerUtil;
@@ -89,11 +88,6 @@ public class KeyedConnectorSplitManager implements ConnectorSplitManager {
                     icebergTableHandle
                         .getEnforcedPredicate()
                         .intersect(icebergTableHandle.getUnenforcedPredicate())));
-
-    if (MixedFormatSessionProperties.enableSplitTaskByDeleteRatio(session)) {
-      tableScan.enableSplitTaskByDeleteRatio(
-          MixedFormatSessionProperties.splitTaskByDeleteRatio(session));
-    }
 
     ClassLoader pluginClassloader = keyedTable.getClass().getClassLoader();
 

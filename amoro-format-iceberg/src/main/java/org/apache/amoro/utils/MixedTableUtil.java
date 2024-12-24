@@ -29,6 +29,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 
 import java.util.List;
@@ -189,5 +190,17 @@ public class MixedTableUtil {
       }
       return spec;
     }
+  }
+
+  public static boolean isPartialUpdateMergeFunction(MixedTable mixedTable) {
+    if (mixedTable.isKeyedTable()) {
+      String mergeFunction =
+          PropertyUtil.propertyAsString(
+              mixedTable.properties(),
+              org.apache.amoro.table.TableProperties.MERGE_FUNCTION,
+              TableProperties.MERGE_FUNCTION_DEFAULT);
+      return TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE.equals(mergeFunction);
+    }
+    return false;
   }
 }

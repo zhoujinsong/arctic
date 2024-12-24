@@ -18,7 +18,7 @@
 
 package org.apache.amoro.spark.reader;
 
-import org.apache.amoro.hive.io.reader.AbstractAdaptHiveKeyedDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
 import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.spark.SparkInternalRowWrapper;
 import org.apache.amoro.spark.util.MixedFormatSparkUtils;
@@ -37,9 +37,9 @@ import org.apache.spark.sql.types.StructType;
 import java.util.Map;
 import java.util.function.Function;
 
-public class SparkKeyedDataReader extends AbstractAdaptHiveKeyedDataReader<InternalRow> {
+public class SparkReplaceDataReader extends AbstractMixedHiveReplaceDataReader<InternalRow> {
 
-  public SparkKeyedDataReader(
+  public SparkReplaceDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
@@ -54,7 +54,8 @@ public class SparkKeyedDataReader extends AbstractAdaptHiveKeyedDataReader<Inter
         nameMapping,
         caseSensitive,
         MixedFormatSparkUtils::convertConstant,
-        true);
+        true,
+        null);
   }
 
   @Override
@@ -74,7 +75,7 @@ public class SparkKeyedDataReader extends AbstractAdaptHiveKeyedDataReader<Inter
     return schema -> {
       final StructType structType = SparkSchemaUtil.convert(schema);
       SparkInternalRowWrapper wrapper = new SparkInternalRowWrapper(structType);
-      return row -> wrapper.wrap(row);
+      return wrapper::wrap;
     };
   }
 }

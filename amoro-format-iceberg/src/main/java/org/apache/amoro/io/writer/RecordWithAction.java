@@ -30,6 +30,10 @@ public class RecordWithAction implements Record {
 
   private final ChangeAction action;
 
+  public static RecordWithAction of(Record record, ChangeAction action) {
+    return new RecordWithAction(record, action);
+  }
+
   public RecordWithAction(Record record, ChangeAction action) {
     this.record = record;
     this.action = action;

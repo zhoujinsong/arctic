@@ -19,11 +19,13 @@
 package org.apache.amoro.hive.io.reader;
 
 import org.apache.amoro.data.DataTreeNode;
+import org.apache.amoro.io.AuthenticatedFileIO;
 import org.apache.amoro.io.reader.MixedDeleteFilter;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.table.PrimaryKeySpec;
 import org.apache.amoro.utils.map.StructLikeCollections;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.AdaptHiveGenericParquetReaders;
 import org.apache.iceberg.io.CloseableIterable;
@@ -32,23 +34,16 @@ import org.apache.iceberg.parquet.AdaptHiveParquet;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Abstract implementation of MixedDeleteFilter to adapt hive when open equality delete files.
  *
  * @param <T> to indicate the record data type.
  */
-public abstract class AdaptHiveMixedDeleteFilter<T> extends MixedDeleteFilter<T> {
+public abstract class AbstractMixedHiveDeleteFilter<T> extends MixedDeleteFilter<T> {
 
-  protected AdaptHiveMixedDeleteFilter(
-      KeyedTableScanTask keyedTableScanTask,
-      Schema tableSchema,
-      Schema requestedSchema,
-      PrimaryKeySpec primaryKeySpec) {
-    super(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec);
-  }
-
-  protected AdaptHiveMixedDeleteFilter(
+  protected AbstractMixedHiveDeleteFilter(
       KeyedTableScanTask keyedTableScanTask,
       Schema tableSchema,
       Schema requestedSchema,
@@ -64,15 +59,6 @@ public abstract class AdaptHiveMixedDeleteFilter<T> extends MixedDeleteFilter<T>
         structLikeCollections);
   }
 
-  protected AdaptHiveMixedDeleteFilter(
-      KeyedTableScanTask keyedTableScanTask,
-      Schema tableSchema,
-      Schema requestedSchema,
-      PrimaryKeySpec primaryKeySpec,
-      Set<DataTreeNode> sourceNodes) {
-    super(keyedTableScanTask, tableSchema, requestedSchema, primaryKeySpec, sourceNodes);
-  }
-
   @Override
   protected CloseableIterable<Record> openParquet(
       InputFile input, Schema deleteSchema, Map<Integer, Object> idToConstant) {
@@ -86,5 +72,46 @@ public abstract class AdaptHiveMixedDeleteFilter<T> extends MixedDeleteFilter<T>
                         deleteSchema, fileSchema, idToConstant));
 
     return builder.build();
+  }
+
+  static class GenericMixedHiveDeleteFilter<T> extends AbstractMixedHiveDeleteFilter<T> {
+
+    protected final Function<T, StructLike> asStructLike;
+    protected final AuthenticatedFileIO fileIO;
+
+    GenericMixedHiveDeleteFilter(
+        KeyedTableScanTask keyedTableScanTask,
+        Schema tableSchema,
+        Schema requestedSchema,
+        PrimaryKeySpec primaryKeySpec,
+        Set<DataTreeNode> sourceNodes,
+        StructLikeCollections structLikeCollections,
+        Function<Schema, Function<T, StructLike>> toStructLikeFunction,
+        AuthenticatedFileIO fileIO) {
+      super(
+          keyedTableScanTask,
+          tableSchema,
+          requestedSchema,
+          primaryKeySpec,
+          sourceNodes,
+          structLikeCollections);
+      this.asStructLike = toStructLikeFunction.apply(requiredSchema());
+      this.fileIO = fileIO;
+    }
+
+    @Override
+    protected StructLike asStructLike(T record) {
+      return asStructLike.apply(record);
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return fileIO.newInputFile(location);
+    }
+
+    @Override
+    protected AuthenticatedFileIO getFileIO() {
+      return fileIO;
+    }
   }
 }

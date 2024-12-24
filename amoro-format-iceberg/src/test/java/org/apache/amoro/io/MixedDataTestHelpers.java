@@ -24,11 +24,13 @@ import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.data.FileNameRules;
 import org.apache.amoro.io.reader.AbstractKeyedDataReader;
 import org.apache.amoro.io.reader.AbstractUnkeyedDataReader;
-import org.apache.amoro.io.reader.GenericKeyedDataReader;
+import org.apache.amoro.io.reader.GenericMergeDataReader;
+import org.apache.amoro.io.reader.GenericReplaceDataReader;
 import org.apache.amoro.io.reader.GenericUnkeyedDataReader;
 import org.apache.amoro.io.writer.GenericBaseTaskWriter;
 import org.apache.amoro.io.writer.GenericChangeTaskWriter;
 import org.apache.amoro.io.writer.GenericTaskWriters;
+import org.apache.amoro.io.writer.RecordWithAction;
 import org.apache.amoro.io.writer.SortedPosDeleteWriter;
 import org.apache.amoro.scan.CombinedScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.base.Preconditions;
@@ -38,6 +40,7 @@ import org.apache.amoro.table.ChangeTable;
 import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.MetadataColumns;
 import org.apache.amoro.table.MixedTable;
+import org.apache.amoro.table.TableProperties;
 import org.apache.amoro.table.UnkeyedTable;
 import org.apache.amoro.utils.MixedTableUtil;
 import org.apache.amoro.utils.map.StructLikeCollections;
@@ -70,6 +73,7 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -128,6 +132,20 @@ public class MixedDataTestHelpers {
     }
     try (GenericChangeTaskWriter writer = builder.buildChangeWriter()) {
       return writeRecords(writer, records);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public static List<DataFile> writeChangeStore(
+      KeyedTable keyedTable, Long txId, List<RecordWithAction> records, boolean orderedWrite) {
+    GenericTaskWriters.Builder builder =
+        GenericTaskWriters.builderFor(keyedTable).withTransactionId(txId);
+    if (orderedWrite) {
+      builder.withOrdered();
+    }
+    try (GenericChangeTaskWriter writer = builder.buildChangeWriter()) {
+      return writeRecords(writer, Lists.newArrayList(records));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -231,13 +249,22 @@ public class MixedDataTestHelpers {
       Schema projectSchema,
       boolean useDiskMap,
       boolean readDeletedData) {
-    GenericKeyedDataReader reader;
+    AbstractKeyedDataReader<Record> reader;
     if (projectSchema == null) {
       projectSchema = keyedTable.schema();
     }
+    String mergeFunction =
+        PropertyUtil.propertyAsString(
+            keyedTable.properties(),
+            TableProperties.MERGE_FUNCTION,
+            TableProperties.MERGE_FUNCTION_DEFAULT);
+    StructLikeCollections structLikeCollections = null;
     if (useDiskMap) {
+      structLikeCollections = new StructLikeCollections(true, 0L);
+    }
+    if (mergeFunction.equalsIgnoreCase(TableProperties.MERGE_FUNCTION_REPLACE)) {
       reader =
-          new GenericKeyedDataReader(
+          new GenericReplaceDataReader(
               keyedTable.io(),
               keyedTable.schema(),
               projectSchema,
@@ -245,19 +272,23 @@ public class MixedDataTestHelpers {
               null,
               true,
               IdentityPartitionConverters::convertConstant,
-              null,
               false,
-              new StructLikeCollections(true, 0L));
-    } else {
+              structLikeCollections);
+    } else if (mergeFunction.equals(TableProperties.MERGE_FUNCTION_PARTIAL_UPDATE)) {
       reader =
-          new GenericKeyedDataReader(
+          new GenericMergeDataReader(
               keyedTable.io(),
               keyedTable.schema(),
               projectSchema,
               keyedTable.primaryKeySpec(),
               null,
               true,
-              IdentityPartitionConverters::convertConstant);
+              IdentityPartitionConverters::convertConstant,
+              false,
+              structLikeCollections,
+              false);
+    } else {
+      throw new IllegalArgumentException("Unsupported merge function: " + mergeFunction);
     }
 
     return readKeyedTable(keyedTable, reader, expression, projectSchema, readDeletedData);
@@ -467,7 +498,26 @@ public class MixedDataTestHelpers {
                     nestedField.name(), sourceRecord.getField(nestedField.name())));
     expectRecord.setField(MetadataColumns.TRANSACTION_ID_FILED_NAME, transactionId);
     expectRecord.setField(MetadataColumns.FILE_OFFSET_FILED_NAME, offset);
-    expectRecord.setField(MetadataColumns.CHANGE_ACTION_NAME, action.toString());
+    expectRecord.setField(MetadataColumns.CHANGE_ACTION_NAME, (int) action.toByteValue());
+    return expectRecord;
+  }
+
+  public static Record appendMetaColumnValues(
+      RecordWithAction sourceRecord, long transactionId, long offset) {
+    Schema sourceSchema = new Schema(sourceRecord.struct().fields());
+    Record expectRecord =
+        GenericRecord.create(MetadataColumns.appendChangeStoreMetadataColumns(sourceSchema));
+    sourceRecord
+        .struct()
+        .fields()
+        .forEach(
+            nestedField ->
+                expectRecord.setField(
+                    nestedField.name(), sourceRecord.getField(nestedField.name())));
+    expectRecord.setField(MetadataColumns.TRANSACTION_ID_FILED_NAME, transactionId);
+    expectRecord.setField(MetadataColumns.FILE_OFFSET_FILED_NAME, offset);
+    expectRecord.setField(
+        MetadataColumns.CHANGE_ACTION_NAME, (int) sourceRecord.getAction().toByteValue());
     return expectRecord;
   }
 

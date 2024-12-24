@@ -35,10 +35,7 @@ import java.util.List;
 public class MixedIcebergRewriteExecutor extends AbstractRewriteFilesExecutor {
 
   public MixedIcebergRewriteExecutor(
-      RewriteFilesInput input,
-      MixedTable table,
-      StructLikeCollections structLikeCollections,
-      String outputDir) {
+      RewriteFilesInput input, MixedTable table, StructLikeCollections structLikeCollections) {
     super(input, table, structLikeCollections);
   }
 

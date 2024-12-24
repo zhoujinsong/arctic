@@ -24,10 +24,10 @@ import org.apache.amoro.flink.lookup.filter.RowDataPredicate;
 import org.apache.amoro.flink.lookup.filter.RowDataPredicateExpressionVisitor;
 import org.apache.amoro.flink.read.hybrid.reader.DataIteratorReaderFunction;
 import org.apache.amoro.flink.read.hybrid.reader.RowDataReaderFunction;
-import org.apache.amoro.flink.read.source.FlinkKeyedMORDataReader;
+import org.apache.amoro.flink.read.source.FlinkReplaceMORDataReader;
 import org.apache.amoro.flink.util.FilterUtil;
 import org.apache.amoro.flink.util.IcebergAndFlinkFilters;
-import org.apache.amoro.hive.io.reader.AbstractAdaptHiveKeyedDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
 import org.apache.amoro.shade.guava32.com.google.common.base.Preconditions;
 import org.apache.amoro.table.MixedTable;
 import org.apache.amoro.utils.SchemaUtil;
@@ -261,7 +261,7 @@ public class MixedFormatDynamicSource
     Optional<RowDataPredicate> rowDataPredicate =
         generatePredicate(projectedSchema, flinkExpression);
 
-    AbstractAdaptHiveKeyedDataReader<RowData> flinkMORDataReader =
+    AbstractMixedHiveReplaceDataReader<RowData> flinkMORDataReader =
         generateMORReader(mixedTable, projectedSchema);
     DataIteratorReaderFunction<RowData> readerFunction =
         generateReaderFunction(mixedTable, projectedSchema);
@@ -292,11 +292,11 @@ public class MixedFormatDynamicSource
         true);
   }
 
-  protected AbstractAdaptHiveKeyedDataReader<RowData> generateMORReader(
+  protected AbstractMixedHiveReplaceDataReader<RowData> generateMORReader(
       MixedTable mixedTable, Schema projectedSchema) {
     BiFunction<Type, Object, Object> convertConstant = new ConvertTask();
 
-    return new FlinkKeyedMORDataReader(
+    return new FlinkReplaceMORDataReader(
         mixedTable.io(),
         mixedTable.schema(),
         projectedSchema,

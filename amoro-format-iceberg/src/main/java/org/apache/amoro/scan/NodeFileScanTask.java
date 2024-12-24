@@ -27,7 +27,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,11 +39,13 @@ public class NodeFileScanTask implements KeyedTableScanTask {
 
   private List<MixedFileScanTask> baseTasks = new ArrayList<>();
   private List<MixedFileScanTask> insertTasks = new ArrayList<>();
-  private List<MixedFileScanTask> deleteFiles = new ArrayList<>();
+  private List<MixedFileScanTask> deleteTasks = new ArrayList<>();
+  private List<MixedFileScanTask> changeTasks = new ArrayList<>();
   private long cost = 0;
-  private final long openFileCost = Long.valueOf(TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+  private final long openFileCost = TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
   private DataTreeNode treeNode;
   private long rowNums = 0;
+  private boolean includeChangeDataRecords = true;
 
   public NodeFileScanTask() {}
 
@@ -49,26 +53,22 @@ public class NodeFileScanTask implements KeyedTableScanTask {
     this.treeNode = treeNode;
   }
 
-  public NodeFileScanTask(List<MixedFileScanTask> allTasks) {
-    this.baseTasks =
-        allTasks.stream()
-            .filter(t -> t.file().type() == DataFileType.BASE_FILE)
-            .collect(Collectors.toList());
-    this.insertTasks =
-        allTasks.stream()
-            .filter(t -> t.file().type() == DataFileType.INSERT_FILE)
-            .collect(Collectors.toList());
-    this.deleteFiles =
-        allTasks.stream()
-            .filter(t -> t.file().type() == DataFileType.EQ_DELETE_FILE)
-            .collect(Collectors.toList());
+  public NodeFileScanTask(DataTreeNode treeNode, List<MixedFileScanTask> allTasks) {
+    this.treeNode = treeNode;
+    Map<DataFileType, List<MixedFileScanTask>> tasksByType =
+        allTasks.stream().collect(Collectors.groupingBy(t -> t.file().type()));
 
-    Stream.concat(baseTasks.stream(), insertTasks.stream())
-        .forEach(
-            task -> {
-              cost = cost + Math.max(task.file().fileSizeInBytes(), openFileCost);
-              rowNums = rowNums + task.file().recordCount();
-            });
+    this.baseTasks = tasksByType.getOrDefault(DataFileType.BASE_FILE, Collections.emptyList());
+    this.changeTasks = tasksByType.getOrDefault(DataFileType.CHANGE_FILE, Collections.emptyList());
+    this.insertTasks = tasksByType.getOrDefault(DataFileType.INSERT_FILE, Collections.emptyList());
+    this.deleteTasks =
+        tasksByType.getOrDefault(DataFileType.EQ_DELETE_FILE, Collections.emptyList());
+
+    allTasks.forEach(
+        task -> {
+          cost = cost + Math.max(task.file().fileSizeInBytes(), openFileCost);
+          rowNums = rowNums + task.file().recordCount();
+        });
   }
 
   public void setTreeNode(DataTreeNode treeNode) {
@@ -89,26 +89,37 @@ public class NodeFileScanTask implements KeyedTableScanTask {
   }
 
   @Override
+  public List<MixedFileScanTask> changeTasks() {
+    return changeTasks;
+  }
+
+  @Override
   public List<MixedFileScanTask> insertTasks() {
     return insertTasks;
   }
 
   @Override
   public List<MixedFileScanTask> mixedEquityDeletes() {
-    return deleteFiles;
+    return deleteTasks;
   }
 
   @Override
   public List<MixedFileScanTask> dataTasks() {
-    return Stream.concat(baseTasks.stream(), insertTasks.stream()).collect(Collectors.toList());
+    return Stream.of(baseTasks, insertTasks, changeTasks)
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
+  }
+
+  @Override
+  public List<MixedFileScanTask> deleteTasks() {
+    return Stream.of(changeTasks, deleteTasks).flatMap(List::stream).collect(Collectors.toList());
   }
 
   public void addFile(MixedFileScanTask task) {
 
     DataFileType fileType = task.fileType();
     if (fileType == null) {
-      LOG.warn("file type is null");
-      return;
+      throw new IllegalArgumentException("file type is null");
     }
     if (fileType == DataFileType.BASE_FILE || fileType == DataFileType.INSERT_FILE) {
       cost = cost + Math.max(task.file().fileSizeInBytes(), openFileCost);
@@ -122,7 +133,10 @@ public class NodeFileScanTask implements KeyedTableScanTask {
         insertTasks.add(task);
         break;
       case EQ_DELETE_FILE:
-        deleteFiles.add(task);
+        deleteTasks.add(task);
+        break;
+      case CHANGE_FILE:
+        changeTasks.add(task);
         break;
       default:
         LOG.warn("file type is {}, not add in node", fileType);
@@ -135,15 +149,19 @@ public class NodeFileScanTask implements KeyedTableScanTask {
   }
 
   public Boolean isDataNode() {
-    return baseTasks.size() > 0 || insertTasks.size() > 0;
-  }
-
-  public Boolean isSameNode(long mask, long index) {
-    return treeNode.mask() == mask && treeNode.index() == index;
+    return !baseTasks.isEmpty() || !insertTasks.isEmpty() || !changeTasks.isEmpty();
   }
 
   public DataTreeNode treeNode() {
     return treeNode;
+  }
+
+  public boolean isIncludeChangeDataRecords() {
+    return includeChangeDataRecords;
+  }
+
+  public void setIncludeChangeDataRecords(boolean includeChangeDataRecords) {
+    this.includeChangeDataRecords = includeChangeDataRecords;
   }
 
   @Override
@@ -151,7 +169,10 @@ public class NodeFileScanTask implements KeyedTableScanTask {
     return MoreObjects.toStringHelper(this)
         .add("\nbaseTasks", FileScanTaskUtil.toString(baseTasks))
         .add("\ninsertTasks", FileScanTaskUtil.toString(insertTasks))
-        .add("\ndeleteFiles", FileScanTaskUtil.toString(deleteFiles))
+        .add("\ndeleteTasks", FileScanTaskUtil.toString(deleteTasks))
+        .add("\nchangeTasks", FileScanTaskUtil.toString(changeTasks))
+        .add("\ntreeNode", treeNode)
+        .add("\nincludeChangeDataRecords", includeChangeDataRecords)
         .toString();
   }
 }

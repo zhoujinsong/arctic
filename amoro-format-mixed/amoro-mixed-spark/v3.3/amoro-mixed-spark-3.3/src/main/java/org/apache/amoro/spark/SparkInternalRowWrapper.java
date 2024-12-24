@@ -45,6 +45,11 @@ public class SparkInternalRowWrapper implements StructLike {
     this.getters = Stream.of(types).map(SparkInternalRowWrapper::getter).toArray(BiFunction[]::new);
   }
 
+  private SparkInternalRowWrapper(SparkInternalRowWrapper wrapper) {
+    this.types = wrapper.types;
+    this.getters = wrapper.getters;
+  }
+
   @Override
   public int size() {
     return types.length;
@@ -69,6 +74,12 @@ public class SparkInternalRowWrapper implements StructLike {
   public SparkInternalRowWrapper wrap(InternalRow internalRow) {
     this.row = internalRow;
     return this;
+  }
+
+  public SparkInternalRowWrapper copyFor(InternalRow internalRow) {
+    SparkInternalRowWrapper copy = new SparkInternalRowWrapper(this);
+    copy.wrap(internalRow);
+    return copy;
   }
 
   private static BiFunction<InternalRow, Integer, ?> getter(DataType type) {

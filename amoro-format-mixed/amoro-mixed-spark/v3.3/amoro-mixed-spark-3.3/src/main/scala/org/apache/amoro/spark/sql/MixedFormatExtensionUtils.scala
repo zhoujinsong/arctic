@@ -87,11 +87,6 @@ object MixedFormatExtensionUtils {
     }
   }
 
-  def isUpsert(relation: DataSourceV2Relation): Boolean = {
-    val upsertWrite = relation.table.asUpsertWrite
-    upsertWrite.appendAsUpsert()
-  }
-
   def isUnkeyedRelation(plan: LogicalPlan): Boolean = {
     def isUnkeyedTable(relation: DataSourceV2Relation): Boolean = relation.table match {
       case _: UnkeyedSparkTable => true

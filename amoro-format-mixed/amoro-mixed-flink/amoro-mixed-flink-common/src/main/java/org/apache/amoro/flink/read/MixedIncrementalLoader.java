@@ -23,7 +23,7 @@ import org.apache.amoro.flink.read.hybrid.enumerator.ContinuousSplitPlanner;
 import org.apache.amoro.flink.read.hybrid.enumerator.MixedFormatEnumeratorOffset;
 import org.apache.amoro.flink.read.hybrid.reader.DataIteratorReaderFunction;
 import org.apache.amoro.flink.read.hybrid.split.MixedFormatSplit;
-import org.apache.amoro.hive.io.reader.AbstractAdaptHiveKeyedDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveReplaceDataReader;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterator;
 import org.slf4j.Logger;
@@ -50,14 +50,14 @@ public class MixedIncrementalLoader<T> implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(MixedIncrementalLoader.class);
   private final ContinuousSplitPlanner continuousSplitPlanner;
   private final DataIteratorReaderFunction<T> readerFunction;
-  private AbstractAdaptHiveKeyedDataReader<T> flinkMORDataReader;
+  private AbstractMixedHiveReplaceDataReader<T> flinkMORDataReader;
   private final List<Expression> filters;
   private final AtomicReference<MixedFormatEnumeratorOffset> enumeratorPosition;
   private final Queue<MixedFormatSplit> splitQueue;
 
   public MixedIncrementalLoader(
       ContinuousSplitPlanner continuousSplitPlanner,
-      AbstractAdaptHiveKeyedDataReader<T> flinkMORDataReader,
+      AbstractMixedHiveReplaceDataReader<T> flinkMORDataReader,
       DataIteratorReaderFunction<T> readerFunction,
       List<Expression> filters) {
     this.continuousSplitPlanner = continuousSplitPlanner;

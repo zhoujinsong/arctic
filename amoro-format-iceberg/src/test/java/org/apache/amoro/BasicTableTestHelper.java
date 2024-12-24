@@ -25,6 +25,7 @@ import static org.apache.amoro.table.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT
 
 import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.io.MixedDataTestHelpers;
+import org.apache.amoro.io.writer.RecordWithAction;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Maps;
 import org.apache.amoro.table.KeyedTable;
 import org.apache.amoro.table.MixedTable;
@@ -45,8 +46,8 @@ public class BasicTableTestHelper implements TableTestHelper {
   public static final Schema TABLE_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.required(2, "name", Types.StringType.get()),
-          Types.NestedField.required(3, "ts", Types.LongType.get()),
+          Types.NestedField.optional(2, "name", Types.StringType.get()),
+          Types.NestedField.optional(3, "ts", Types.LongType.get()),
           Types.NestedField.required(4, "op_time", Types.TimestampType.withoutZone()));
 
   public static final PartitionSpec SPEC =
@@ -145,6 +146,12 @@ public class BasicTableTestHelper implements TableTestHelper {
   }
 
   @Override
+  public List<DataFile> writeChangeStore(
+      KeyedTable keyedTable, Long txId, List<RecordWithAction> records, boolean orderedWrite) {
+    return MixedDataTestHelpers.writeChangeStore(keyedTable, txId, records, orderedWrite);
+  }
+
+  @Override
   public List<DataFile> writeBaseStore(
       MixedTable table, long txId, List<Record> records, boolean orderedWrite) {
     return MixedDataTestHelpers.writeBaseStore(table, txId, records, orderedWrite);
@@ -180,8 +187,8 @@ public class BasicTableTestHelper implements TableTestHelper {
         primaryKeySpec.primaryKeyExisted(), partitionSpec.isPartitioned());
   }
 
-  protected static Map<String, String> buildTableFormat(String fileFormat) {
-    Map<String, String> tableProperties = Maps.newHashMapWithExpectedSize(3);
+  public static Map<String, String> buildTableFormat(String fileFormat) {
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(BASE_FILE_FORMAT, fileFormat);
     tableProperties.put(CHANGE_FILE_FORMAT, fileFormat);
     tableProperties.put(DEFAULT_FILE_FORMAT, fileFormat);

@@ -78,7 +78,7 @@ public class HiveTableTestHelper extends BasicTableTestHelper {
   }
 
   public HiveTableTestHelper(boolean hasPrimaryKey, boolean hasPartition, String fileFormat) {
-    this(hasPrimaryKey, hasPartition, buildTableFormat(fileFormat));
+    this(hasPrimaryKey, hasPartition, BasicTableTestHelper.buildTableFormat(fileFormat));
   }
 
   public HiveTableTestHelper(boolean hasPrimaryKey, boolean hasPartition) {

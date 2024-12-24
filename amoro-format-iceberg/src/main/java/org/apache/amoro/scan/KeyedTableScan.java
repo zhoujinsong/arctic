@@ -39,11 +39,4 @@ public interface KeyedTableScan {
    * @return an Iterable of tasks for this scan
    */
   CloseableIterable<CombinedScanTask> planTasks();
-
-  /**
-   * To enable the feature of splitting tasks based on the delete ratio, If the delete ratio under a
-   * node is less than splitTaskByDeleteRatio value, the plan will be split into as many tasks as
-   * possible during execution.
-   */
-  KeyedTableScan enableSplitTaskByDeleteRatio(double splitTaskByDeleteRatio);
 }

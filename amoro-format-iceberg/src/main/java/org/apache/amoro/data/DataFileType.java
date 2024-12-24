@@ -27,10 +27,11 @@ import org.apache.iceberg.FileContent;
  *
  * <ul>
  *   <li>BASE_FILE: store data record in {@link BaseTable}
- *   <li>INSERT_LINE: store data record in {@link ChangeTable}
- *   <li>EQ_DELETE_FILE: store equality delete record in {@link ChangeTable}
+ *   <li>INSERT_LINE: store data record in {@link ChangeTable}, deprecated in 0.8.0
+ *   <li>EQ_DELETE_FILE: store equality delete record in {@link ChangeTable}, deprecated in 0.8.0
  *   <li>POS_DELETE_FILE: store positional delete record in {@link BaseTable}
  *   <li>ICEBERG_EQ_DELETE_FILE: store equality delete record in native iceberg table
+ *   <li>CHANGE_FILE: store data record in {@link ChangeTable}
  * </ul>
  */
 public enum DataFileType {
@@ -39,7 +40,8 @@ public enum DataFileType {
   EQ_DELETE_FILE(2, "ED"),
   POS_DELETE_FILE(3, "PD"),
   ICEBERG_EQ_DELETE_FILE(4, "IED"),
-  LOG_FILE(5, "L");
+  LOG_FILE(5, "L"),
+  CHANGE_FILE(6, "C");
 
   private final int id;
 

@@ -28,7 +28,7 @@ import org.apache.amoro.catalog.CatalogTestHelper;
 import org.apache.amoro.catalog.TableTestBase;
 import org.apache.amoro.flink.catalog.factories.CatalogFactoryOptions;
 import org.apache.amoro.flink.write.MixedFormatRowDataTaskWriterFactory;
-import org.apache.amoro.io.reader.GenericKeyedDataReader;
+import org.apache.amoro.io.reader.GenericReplaceDataReader;
 import org.apache.amoro.scan.CombinedScanTask;
 import org.apache.amoro.scan.KeyedTableScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.ImmutableList;
@@ -214,19 +214,21 @@ public class FlinkTestBase extends TableTestBase {
   public static List<Record> read(KeyedTable table) {
     CloseableIterable<CombinedScanTask> combinedScanTasks = table.newScan().planTasks();
     Schema schema = table.schema();
-    GenericKeyedDataReader genericKeyedDataReader =
-        new GenericKeyedDataReader(
+    GenericReplaceDataReader genericReplaceDataReader =
+        new GenericReplaceDataReader(
             table.io(),
             schema,
             schema,
             table.primaryKeySpec(),
             null,
             true,
-            IdentityPartitionConverters::convertConstant);
+            IdentityPartitionConverters::convertConstant,
+            false,
+            null);
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
     for (CombinedScanTask combinedScanTask : combinedScanTasks) {
       for (KeyedTableScanTask keyedTableScanTask : combinedScanTask.tasks()) {
-        builder.addAll(genericKeyedDataReader.readData(keyedTableScanTask));
+        builder.addAll(genericReplaceDataReader.readData(keyedTableScanTask));
       }
     }
     return builder.build();

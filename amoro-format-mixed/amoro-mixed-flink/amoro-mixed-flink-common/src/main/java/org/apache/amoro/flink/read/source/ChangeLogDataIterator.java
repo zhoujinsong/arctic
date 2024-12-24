@@ -18,8 +18,6 @@
 
 package org.apache.amoro.flink.read.source;
 
-import static org.apache.amoro.data.ChangeAction.DELETE;
-import static org.apache.amoro.data.ChangeAction.INSERT;
 import static org.apache.amoro.data.ChangeAction.UPDATE_AFTER;
 import static org.apache.amoro.data.ChangeAction.UPDATE_BEFORE;
 
@@ -50,18 +48,21 @@ public class ChangeLogDataIterator<T> extends DataIterator<T> {
       Collection<MixedFileScanTask> insertTasks,
       Collection<MixedFileScanTask> deleteTasks,
       Function<T, Long> mixedFormatFileOffsetGetter,
+      Function<T, ChangeAction> mixedFormatChangeActionGetter,
       Function<T, T> mixedFormatMetaColumnRemover,
       Function<ChangeActionTrans<T>, T> changeActionTransformer) {
     super(
         fileScanTaskReader,
         Collections.emptyList(),
         mixedFormatFileOffsetGetter,
+        mixedFormatChangeActionGetter,
         mixedFormatMetaColumnRemover);
     this.insertDataIterator =
         new DataIterator<>(
             fileScanTaskReader,
             insertTasks,
             mixedFormatFileOffsetGetter,
+            mixedFormatChangeActionGetter,
             mixedFormatMetaColumnRemover);
     if (deleteTasks != null && !deleteTasks.isEmpty()) {
       this.deleteDataIterator =
@@ -69,6 +70,7 @@ public class ChangeLogDataIterator<T> extends DataIterator<T> {
               fileScanTaskReader,
               deleteTasks,
               mixedFormatFileOffsetGetter,
+              mixedFormatChangeActionGetter,
               mixedFormatMetaColumnRemover);
     }
     this.mixedFormatMetaColumnRemover = mixedFormatMetaColumnRemover;
@@ -96,7 +98,7 @@ public class ChangeLogDataIterator<T> extends DataIterator<T> {
     if (dataIterator.hasNext() && holder.isEmpty()) {
       T next = dataIterator.next();
       long nextOffset = dataIterator.currentMixedFormatFileOffset();
-      ChangeAction changeAction = insert ? INSERT : DELETE;
+      ChangeAction changeAction = dataIterator.currentChangeAction();
       holder.put(next, changeAction, nextOffset);
     }
   }

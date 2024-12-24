@@ -104,7 +104,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     } else {
       node = DataTreeNode.ROOT;
     }
-    return new DataWriterKey(partitionKey, node, DataFileType.BASE_FILE);
+    return new DataWriterKey(partitionKey, node, fileType());
+  }
+
+  protected DataFileType fileType() {
+    return DataFileType.BASE_FILE;
   }
 
   @Override

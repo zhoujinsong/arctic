@@ -34,7 +34,8 @@ import java.util.stream.Collectors;
 public class SchemaUtil {
 
   public static Schema changeWriteSchema(Schema changeTableSchema) {
-    Schema changeWriteMetaColumnsSchema = new Schema(MetadataColumns.FILE_OFFSET_FILED);
+    Schema changeWriteMetaColumnsSchema =
+        new Schema(MetadataColumns.FILE_OFFSET_FILED, MetadataColumns.CHANGE_ACTION_FIELD);
     return TypeUtil.join(changeTableSchema, changeWriteMetaColumnsSchema);
   }
 

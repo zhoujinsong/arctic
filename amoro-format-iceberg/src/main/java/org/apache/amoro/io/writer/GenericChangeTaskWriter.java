@@ -79,6 +79,7 @@ public class GenericChangeTaskWriter extends ChangeTaskWriter<Record> {
       joinRecord.set(i, data.get(i));
     }
     joinRecord.set(i, fileOffset);
+    joinRecord.set(i + 1, (int) (action(data).toByteValue()));
     return joinRecord;
   }
 

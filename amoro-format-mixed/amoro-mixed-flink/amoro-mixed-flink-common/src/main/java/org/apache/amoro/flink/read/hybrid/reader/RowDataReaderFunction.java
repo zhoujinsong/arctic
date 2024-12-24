@@ -22,11 +22,12 @@ import static org.apache.amoro.flink.shuffle.RowKindUtil.convertToFlinkRowKind;
 import static org.apache.amoro.utils.SchemaUtil.changeWriteSchema;
 import static org.apache.amoro.utils.SchemaUtil.fillUpIdentifierFields;
 
+import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.flink.read.hybrid.split.MixedFormatSplit;
 import org.apache.amoro.flink.read.source.ChangeLogDataIterator;
 import org.apache.amoro.flink.read.source.DataIterator;
 import org.apache.amoro.flink.read.source.FileScanTaskReader;
-import org.apache.amoro.flink.read.source.FlinkKeyedMORDataReader;
+import org.apache.amoro.flink.read.source.FlinkReplaceMORDataReader;
 import org.apache.amoro.flink.read.source.FlinkUnkyedDataReader;
 import org.apache.amoro.flink.read.source.MergeOnReadDataIterator;
 import org.apache.amoro.flink.util.MixedFormatUtils;
@@ -61,6 +62,12 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
    * this#wrapFileOffsetColumnMeta}
    */
   private final int fileOffsetIndex;
+
+  /**
+   * The index of the mixed-format file offset field in the read schema Refer to {@link
+   * this#wrapFileOffsetColumnMeta}
+   */
+  private final int changeActionIndex;
 
   private final boolean reuse;
 
@@ -105,6 +112,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
     this.io = io;
     // Add file offset column after readSchema.
     this.fileOffsetIndex = readSchema.columns().size();
+    this.changeActionIndex = readSchema.columns().size() + 1;
     this.columnSize =
         projectedSchema == null ? readSchema.columns().size() : projectedSchema.columns().size();
     this.reuse = reuse;
@@ -113,8 +121,8 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   @Override
   public DataIterator<RowData> createDataIterator(MixedFormatSplit split) {
     if (split.isMergeOnReadSplit()) {
-      FlinkKeyedMORDataReader morDataReader =
-          new FlinkKeyedMORDataReader(
+      FlinkReplaceMORDataReader morDataReader =
+          new FlinkReplaceMORDataReader(
               io,
               tableSchema,
               readSchema,
@@ -141,6 +149,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
           rowDataReader,
           split.asSnapshotSplit().insertTasks(),
           rowData -> Long.MIN_VALUE,
+          rowData -> ChangeAction.INSERT,
           this::removeMixedFormatMetaColumn);
     } else if (split.isChangelogSplit()) {
       FileScanTaskReader<RowData> rowDataReader =
@@ -159,6 +168,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
           split.asChangelogSplit().insertTasks(),
           split.asChangelogSplit().deleteTasks(),
           this::mixedFormatFileOffset,
+          this::mixedFormatChangeAction,
           this::removeMixedFormatMetaColumn,
           this::transformRowKind);
     } else {
@@ -174,6 +184,10 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
 
   long mixedFormatFileOffset(RowData rowData) {
     return rowData.getLong(fileOffsetIndex);
+  }
+
+  ChangeAction mixedFormatChangeAction(RowData rowData) {
+    return ChangeAction.fromByteValue((byte) rowData.getInt(changeActionIndex));
   }
 
   /**

@@ -29,6 +29,7 @@ import org.apache.amoro.catalog.CatalogTestHelper;
 import org.apache.amoro.catalog.TableTestBase;
 import org.apache.amoro.data.ChangeAction;
 import org.apache.amoro.io.writer.GenericTaskWriters;
+import org.apache.amoro.io.writer.RecordWithAction;
 import org.apache.amoro.io.writer.SortedPosDeleteWriter;
 import org.apache.amoro.scan.TableEntriesScan;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
@@ -204,47 +205,72 @@ public class TestTaskWriter extends TableTestBase {
   @Test
   public void testChangeWriter() {
     Assume.assumeTrue(isKeyedTable());
-    List<Record> insertRecords = Lists.newArrayList();
-    insertRecords.add(tableTestHelper().generateTestRecord(1, "john", 0, "2022-01-01T12:00:00"));
-    insertRecords.add(tableTestHelper().generateTestRecord(2, "lily", 0, "2022-01-02T12:00:00"));
-    insertRecords.add(tableTestHelper().generateTestRecord(3, "jake", 0, "2022-01-03T12:00:00"));
-    insertRecords.add(tableTestHelper().generateTestRecord(4, "sam", 0, "2022-01-04T12:00:00"));
-    insertRecords.add(tableTestHelper().generateTestRecord(5, "mary", 0, "2022-01-01T12:00:00"));
+    List<RecordWithAction> records = Lists.newArrayList();
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(1, "john", 0, "2022-01-01T12:00:00"),
+            ChangeAction.INSERT));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(2, "lily", 0, "2022-01-02T12:00:00"),
+            ChangeAction.INSERT));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(3, "jake", 0, "2022-01-03T12:00:00"),
+            ChangeAction.INSERT));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(4, "sam", 0, "2022-01-04T12:00:00"),
+            ChangeAction.INSERT));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(5, "mary", 0, "2022-01-01T12:00:00"),
+            ChangeAction.INSERT));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(6, "mack", 0, "2022-01-01T12:00:00"),
+            ChangeAction.INSERT));
 
-    List<DataFile> insertFiles =
-        tableTestHelper()
-            .writeChangeStore(
-                getMixedTable().asKeyedTable(), 1L, ChangeAction.INSERT, insertRecords, false);
-    Assert.assertEquals(4, insertFiles.size());
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(1, "john", 0, "2022-01-01T12:00:00"),
+            ChangeAction.UPDATE_BEFORE));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(1, "new_john", 0, "2022-01-01T12:00:00"),
+            ChangeAction.UPDATE_AFTER));
+    records.add(
+        RecordWithAction.of(
+            tableTestHelper().generateTestRecord(2, "lily", 0, "2022-01-02T12:00:00"),
+            ChangeAction.DELETE));
 
-    List<Record> deleteRecords = Lists.newArrayList();
-    deleteRecords.add(insertRecords.get(0));
-    deleteRecords.add(insertRecords.get(1));
+    List<DataFile> changeFiles =
+        tableTestHelper().writeChangeStore(getMixedTable().asKeyedTable(), 1L, records, false);
 
-    List<DataFile> deleteFiles =
-        tableTestHelper()
-            .writeChangeStore(
-                getMixedTable().asKeyedTable(), 2L, ChangeAction.DELETE, deleteRecords, false);
-    Assert.assertEquals(2, deleteFiles.size());
+    if (isKeyedTable()) {
+      if (isPartitionedTable()) {
+        Assert.assertEquals(5, changeFiles.size());
+      } else {
+        Assert.assertEquals(4, changeFiles.size());
+      }
+    } else {
+      if (isPartitionedTable()) {
+        Assert.assertEquals(4, changeFiles.size());
+      } else {
+        Assert.assertEquals(1, changeFiles.size());
+      }
+    }
 
     AppendFiles appendFiles = getMixedTable().asKeyedTable().changeTable().newAppend();
-    insertFiles.forEach(appendFiles::appendFile);
-    deleteFiles.forEach(appendFiles::appendFile);
+    changeFiles.forEach(appendFiles::appendFile);
     appendFiles.commit();
 
     List<Record> readChangeRecords =
         tableTestHelper()
             .readChangeStore(getMixedTable().asKeyedTable(), Expressions.alwaysTrue(), null, false);
     List<Record> expectRecord = Lists.newArrayList();
-    for (int i = 0; i < insertRecords.size(); i++) {
-      expectRecord.add(
-          MixedDataTestHelpers.appendMetaColumnValues(
-              insertRecords.get(i), 1L, i + 1, ChangeAction.INSERT));
-    }
-    for (int i = 0; i < deleteRecords.size(); i++) {
-      expectRecord.add(
-          MixedDataTestHelpers.appendMetaColumnValues(
-              deleteRecords.get(i), 2L, i + 1, ChangeAction.DELETE));
+    for (int i = 0; i < records.size(); i++) {
+      expectRecord.add(MixedDataTestHelpers.appendMetaColumnValues(records.get(i), 1L, i + 1));
     }
     Assert.assertEquals(Sets.newHashSet(expectRecord), Sets.newHashSet(readChangeRecords));
   }

@@ -188,7 +188,6 @@ public class KeyedTableFileScanHelper implements TableFileScanHelper {
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
-        PartitionSpec partitionSpec = changeTable.spec();
         changeScanResult =
             CloseableIterable.withNoopClose(
                 changeFiles
@@ -334,8 +333,19 @@ public class KeyedTableFileScanHelper implements TableFileScanHelper {
               .computeIfAbsent(node, key -> Sets.newHashSet())
               .add(file);
           break;
+        case CHANGE_FILE:
+          // Change files contain both equality delete records and insert records
+          equalityDeleteFiles
+              .computeIfAbsent(partition, key -> Maps.newHashMap())
+              .computeIfAbsent(node, key -> Sets.newHashSet())
+              .add(file);
+          insertFiles
+              .computeIfAbsent(partition, key -> Maps.newHashMap())
+              .computeIfAbsent(node, key -> Sets.newHashSet())
+              .add(file);
+          break;
         default:
-          throw new IllegalStateException("illegal file type in change store " + type);
+          throw new IllegalStateException("Illegal file type in change store " + type);
       }
     }
 

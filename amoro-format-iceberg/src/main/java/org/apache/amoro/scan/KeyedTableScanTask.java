@@ -41,12 +41,18 @@ public interface KeyedTableScanTask extends Serializable {
   /** Returns a list of {@link MixedFileScanTask} for base files */
   List<MixedFileScanTask> baseTasks();
 
+  /** Returns a list of {@link MixedFileScanTask} for change files */
+  List<MixedFileScanTask> changeTasks();
+
   /** Returns a list of {@link MixedFileScanTask} for insert files */
   List<MixedFileScanTask> insertTasks();
 
   /** Returns a list of {@link MixedFileScanTask} for equality delete files */
   List<MixedFileScanTask> mixedEquityDeletes();
 
-  /** Returns a list of {@link MixedFileScanTask} for insert files and base files */
+  /** Returns a list of {@link MixedFileScanTask} for data records */
   List<MixedFileScanTask> dataTasks();
+
+  /** Returns a list of {@link MixedFileScanTask} for delete records */
+  List<MixedFileScanTask> deleteTasks();
 }

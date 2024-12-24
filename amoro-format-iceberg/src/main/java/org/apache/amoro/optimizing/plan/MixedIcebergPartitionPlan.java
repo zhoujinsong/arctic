@@ -23,6 +23,7 @@ import org.apache.amoro.config.OptimizingConfig;
 import org.apache.amoro.data.DataFileType;
 import org.apache.amoro.data.DataTreeNode;
 import org.apache.amoro.data.PrimaryKeyedFile;
+import org.apache.amoro.optimizing.MixedIcebergOptimizingDataReader;
 import org.apache.amoro.optimizing.MixedIcebergRewriteExecutorFactory;
 import org.apache.amoro.optimizing.OptimizingInputProperties;
 import org.apache.amoro.shade.guava32.com.google.common.collect.Lists;
@@ -162,7 +163,9 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
         return false;
       }
       PrimaryKeyedFile file = (PrimaryKeyedFile) dataFile;
-      return file.type() == DataFileType.INSERT_FILE || file.type() == DataFileType.EQ_DELETE_FILE;
+      return file.type() == DataFileType.INSERT_FILE
+          || file.type() == DataFileType.EQ_DELETE_FILE
+          || file.type() == DataFileType.CHANGE_FILE;
     }
 
     @Override
@@ -170,8 +173,9 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
       PrimaryKeyedFile file = (PrimaryKeyedFile) dataFile;
       if (file.type() == DataFileType.BASE_FILE) {
         return dataFile.fileSizeInBytes() <= fragmentSize;
-      } else if (file.type() == DataFileType.INSERT_FILE) {
-        // for keyed table, we treat all insert files as fragment files
+      } else if (file.type() == DataFileType.INSERT_FILE
+          || file.type() == DataFileType.CHANGE_FILE) {
+        // for keyed table, we treat all insert files and change files as fragment files
         return true;
       } else {
         throw new IllegalStateException("unexpected file type " + file.type() + " of " + file);
@@ -202,6 +206,17 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
         }
       } else {
         return super.isMinorNecessary();
+      }
+    }
+
+    @Override
+    public boolean enoughContent() {
+      if (keyedTable) {
+        int baseSplitCount = getBaseSplitCount();
+        return undersizedSegmentFileSize >= (config.getTargetSize() * baseSplitCount)
+            && min1SegmentFileSize + min2SegmentFileSize <= config.getTargetSize();
+      } else {
+        return super.enoughContent();
       }
     }
 
@@ -275,15 +290,20 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
       List<SplitTask> result = Lists.newArrayList();
       FileTree rootTree = FileTree.newTreeRoot();
       undersizedSegmentFiles.forEach(rootTree::addRewriteDataFile);
+      Map<DataFile, List<ContentFile<?>>> leftUndersizedSegmentFiles = Maps.newHashMap();
       for (SplitTask splitTask : genSplitTasks(rootTree)) {
         if (splitTask.getRewriteDataFiles().size() > 1) {
-          result.add(splitTask);
+          splitTask
+              .getRewriteDataFiles()
+              .forEach(
+                  file -> leftUndersizedSegmentFiles.put(file, undersizedSegmentFiles.get(file)));
           continue;
         }
         disposeUndersizedSegmentFile(splitTask);
       }
 
       rootTree = FileTree.newTreeRoot();
+      leftUndersizedSegmentFiles.forEach(rootTree::addRewriteDataFile);
       rewritePosDataFiles.forEach(rootTree::addRewritePosDataFile);
       rewriteDataFiles.forEach(rootTree::addRewriteDataFile);
       result.addAll(genSplitTasks(rootTree));
@@ -302,13 +322,16 @@ public class MixedIcebergPartitionPlan extends AbstractPartitionPlan {
         subTree.collectRewriteDataFiles(rewriteDataFiles);
         subTree.collectRewritePosDataFiles(rewritePosDataFiles);
         // A subTree will also be generated when there is no file, filter it
-        if (rewriteDataFiles.size() == 0 && rewritePosDataFiles.size() == 0) {
+        if (rewriteDataFiles.isEmpty() && rewritePosDataFiles.isEmpty()) {
           continue;
         }
         rewriteDataFiles.forEach((f, deletes) -> deleteFiles.addAll(deletes));
         rewritePosDataFiles.forEach((f, deletes) -> deleteFiles.addAll(deletes));
-        result.add(
-            new SplitTask(rewriteDataFiles.keySet(), rewritePosDataFiles.keySet(), deleteFiles));
+        SplitTask splitTask =
+            new SplitTask(rewriteDataFiles.keySet(), rewritePosDataFiles.keySet(), deleteFiles);
+        splitTask.addOption(
+            MixedIcebergOptimizingDataReader.NODE_ID, String.valueOf(subTree.node.getId()));
+        result.add(splitTask);
       }
       return result;
     }

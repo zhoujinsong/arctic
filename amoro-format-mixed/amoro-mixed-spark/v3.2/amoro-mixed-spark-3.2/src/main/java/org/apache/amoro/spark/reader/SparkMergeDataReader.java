@@ -16,39 +16,38 @@
  * limitations under the License.
  */
 
-package org.apache.amoro.flink.read.source;
+package org.apache.amoro.spark.reader;
 
-import org.apache.amoro.flink.read.AdaptHiveFlinkParquetReaders;
-import org.apache.amoro.hive.io.reader.AbstractAdaptHiveKeyedDataReader;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveMergeDataReader;
 import org.apache.amoro.io.AuthenticatedFileIO;
+import org.apache.amoro.io.reader.MergeFunction;
+import org.apache.amoro.spark.SparkInternalRowWrapper;
+import org.apache.amoro.spark.mixed.PartialUpdateMergeFunction;
+import org.apache.amoro.spark.util.MixedFormatSparkUtils;
 import org.apache.amoro.table.PrimaryKeySpec;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.data.FlinkOrcReader;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.ParquetValueReader;
-import org.apache.iceberg.types.Type;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.orc.TypeDescription;
 import org.apache.parquet.schema.MessageType;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class FlinkKeyedMORDataReader extends AbstractAdaptHiveKeyedDataReader<RowData> {
-  public FlinkKeyedMORDataReader(
+public class SparkMergeDataReader extends AbstractMixedHiveMergeDataReader<InternalRow> {
+
+  public SparkMergeDataReader(
       AuthenticatedFileIO fileIO,
       Schema tableSchema,
       Schema projectedSchema,
       PrimaryKeySpec primaryKeySpec,
       String nameMapping,
-      boolean caseSensitive,
-      BiFunction<Type, Object, Object> convertConstant,
-      boolean reuseContainer) {
+      boolean caseSensitive) {
     super(
         fileIO,
         tableSchema,
@@ -56,29 +55,44 @@ public class FlinkKeyedMORDataReader extends AbstractAdaptHiveKeyedDataReader<Ro
         primaryKeySpec,
         nameMapping,
         caseSensitive,
-        convertConstant,
-        reuseContainer);
+        MixedFormatSparkUtils::convertConstant,
+        true,
+        null,
+        false);
   }
 
   @Override
   protected Function<MessageType, ParquetValueReader<?>> getParquetReaderFunction(
       Schema projectSchema, Map<Integer, ?> idToConstant) {
-    return fileSchema ->
-        AdaptHiveFlinkParquetReaders.buildReader(projectSchema, fileSchema, idToConstant);
+    return fileSchema -> SparkParquetReaders.buildReader(projectSchema, fileSchema, idToConstant);
   }
 
   @Override
   protected Function<TypeDescription, OrcRowReader<?>> getOrcReaderFunction(
       Schema projectSchema, Map<Integer, ?> idToConstant) {
-    return fileSchema -> new FlinkOrcReader(projectSchema, fileSchema, idToConstant);
+    return fileSchema -> new SparkOrcReader(projectSchema, fileSchema, idToConstant);
   }
 
   @Override
-  protected Function<Schema, Function<RowData, StructLike>> toStructLikeFunction() {
+  protected Function<Schema, Function<InternalRow, StructLike>> toStructLikeFunction() {
     return schema -> {
-      RowType requiredRowType = FlinkSchemaUtil.convert(schema);
-      RowDataWrapper asStructLike = new RowDataWrapper(requiredRowType, schema.asStruct());
-      return asStructLike::wrap;
+      final StructType structType = SparkSchemaUtil.convert(schema);
+      SparkInternalRowWrapper wrapper = new SparkInternalRowWrapper(structType);
+      return wrapper::wrap;
+    };
+  }
+
+  @Override
+  protected MergeFunction<InternalRow> mergeFunction() {
+    return PartialUpdateMergeFunction.getInstance();
+  }
+
+  @Override
+  protected Function<Schema, Function<InternalRow, StructLike>> toNonResueStructLikeFunction() {
+    return schema -> {
+      final StructType structType = SparkSchemaUtil.convert(schema);
+      SparkInternalRowWrapper wrapper = new SparkInternalRowWrapper(structType);
+      return wrapper::copyFor;
     };
   }
 }

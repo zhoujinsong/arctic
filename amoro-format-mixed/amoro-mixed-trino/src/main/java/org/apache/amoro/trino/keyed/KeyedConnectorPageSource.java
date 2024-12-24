@@ -36,7 +36,7 @@ import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
 import org.apache.amoro.data.DataFileType;
 import org.apache.amoro.data.PrimaryKeyedFile;
-import org.apache.amoro.hive.io.reader.AdaptHiveMixedDeleteFilter;
+import org.apache.amoro.hive.io.reader.AbstractMixedHiveDeleteFilter;
 import org.apache.amoro.scan.MixedFileScanTask;
 import org.apache.amoro.shade.guava32.com.google.common.collect.ImmutableList;
 import org.apache.amoro.table.MetadataColumns;
@@ -70,7 +70,7 @@ public class KeyedConnectorPageSource implements ConnectorPageSource {
   private final List<IcebergColumnHandle> requiredColumns;
   private final DynamicFilter dynamicFilter;
   private final TypeManager typeManager;
-  private final AdaptHiveMixedDeleteFilter<TrinoRow> mixedDeleteFilter;
+  private final AbstractMixedHiveDeleteFilter<TrinoRow> mixedDeleteFilter;
 
   private final List<ColumnHandle> requireColumnsDummy;
   private final Type[] requireColumnTypes;
@@ -92,7 +92,7 @@ public class KeyedConnectorPageSource implements ConnectorPageSource {
       KeyedTableHandle table,
       DynamicFilter dynamicFilter,
       TypeManager typeManager,
-      AdaptHiveMixedDeleteFilter<TrinoRow> mixedDeleteFilter) {
+      AbstractMixedHiveDeleteFilter<TrinoRow> mixedDeleteFilter) {
     this.expectedColumns = expectedColumns;
     this.icebergPageSourceProvider = icebergPageSourceProvider;
     this.transaction = transaction;
@@ -167,10 +167,10 @@ public class KeyedConnectorPageSource implements ConnectorPageSource {
       if (mixedDeleteFilter != null) {
         int positionCount = page.getPositionCount();
         int[] positionsToKeep = new int[positionCount];
-        try (CloseableIterable<TrinoRow> filteredRows =
-            mixedDeleteFilter.filter(
-                CloseableIterable.withNoopClose(
-                    TrinoRow.fromPage(requireColumnTypes, page, positionCount)))) {
+        CloseableIterable<TrinoRow> rows =
+            CloseableIterable.withNoopClose(
+                TrinoRow.fromPage(requireColumnTypes, page, positionCount));
+        try (CloseableIterable<TrinoRow> filteredRows = mixedDeleteFilter.filter(rows)) {
           int positionsToKeepCount = 0;
           for (TrinoRow rowToKeep : filteredRows) {
             positionsToKeep[positionsToKeepCount] = rowToKeep.getPosition();

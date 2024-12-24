@@ -35,9 +35,6 @@ public class MixedIcebergRewriteExecutorFactory
   public OptimizingExecutor<RewriteFilesOutput> createExecutor(RewriteFilesInput input) {
     OptimizingInputProperties optimizingConfig = OptimizingInputProperties.parse(properties);
     return new MixedIcebergRewriteExecutor(
-        input,
-        input.getTable(),
-        optimizingConfig.getStructLikeCollections(),
-        optimizingConfig.getOutputDir());
+        input, input.getTable(), optimizingConfig.getStructLikeCollections());
   }
 }

@@ -70,7 +70,7 @@ public class SparkChangeTaskWriter extends ChangeTaskWriter<InternalRow> {
   @Override
   protected InternalRow appendMetaColumns(InternalRow data, Long fileOffset) {
     SparkInternalRowCastWrapper row = (SparkInternalRowCastWrapper) data;
-    return row.setFileOffset(fileOffset);
+    return row.addMetaColumns(fileOffset);
   }
 
   @Override

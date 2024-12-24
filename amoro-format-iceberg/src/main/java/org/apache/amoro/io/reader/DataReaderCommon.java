@@ -70,11 +70,12 @@ public class DataReaderCommon {
       if (mixedFileScanTask.fileType() == DataFileType.EQ_DELETE_FILE) {
         idToConstant.put(
             MetadataColumns.CHANGE_ACTION_ID,
-            convertConstant.apply(Types.StringType.get(), ChangeAction.DELETE.toString()));
+            convertConstant.apply(
+                Types.IntegerType.get(), (int) ChangeAction.DELETE.toByteValue()));
       } else if (mixedFileScanTask.fileType() == DataFileType.INSERT_FILE) {
         idToConstant.put(
             MetadataColumns.CHANGE_ACTION_ID,
-            convertConstant.apply(Types.StringType.get(), ChangeAction.INSERT.toString()));
+            convertConstant.apply(Types.StringType.get(), (int) ChangeAction.INSERT.toByteValue()));
       }
     }
     return idToConstant;

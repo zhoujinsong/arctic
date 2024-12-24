@@ -35,16 +35,19 @@ public class TableFiles {
 
   public final Set<DataFile> changeInsertFiles;
   public final Set<DataFile> changeEqDeleteFiles;
+  public final Set<DataFile> changeFiles;
 
   public TableFiles(
       Set<DataFile> baseDataFiles,
       Set<DeleteFile> baseDeleteFiles,
       Set<DataFile> changeInsertFiles,
-      Set<DataFile> changeEqDeleteFiles) {
+      Set<DataFile> changeEqDeleteFiles,
+      Set<DataFile> changeFiles) {
     this.baseDataFiles = baseDataFiles;
     this.baseDeleteFiles = baseDeleteFiles;
     this.changeInsertFiles = changeInsertFiles;
     this.changeEqDeleteFiles = changeEqDeleteFiles;
+    this.changeFiles = changeFiles;
   }
 
   public TableFiles(Set<DataFile> baseDataFiles, Set<DeleteFile> baseDeleteFiles) {
@@ -52,13 +55,15 @@ public class TableFiles {
     this.baseDeleteFiles = baseDeleteFiles;
     this.changeInsertFiles = Collections.emptySet();
     this.changeEqDeleteFiles = Collections.emptySet();
+    this.changeFiles = Collections.emptySet();
   }
 
   public int totalFileCount() {
     return baseDataFiles.size()
         + baseDeleteFiles.size()
         + changeInsertFiles.size()
-        + changeEqDeleteFiles.size();
+        + changeEqDeleteFiles.size()
+        + changeFiles.size();
   }
 
   public TableFiles filterByPartitions(StructLikeSet partitions) {
@@ -80,6 +85,8 @@ public class TableFiles {
 
     Set<DataFile> changeDelete =
         changeEqDeleteFiles.stream().filter(filter).collect(Collectors.toSet());
-    return new TableFiles(base, baseDelete, changeInsert, changeDelete);
+
+    Set<DataFile> change = changeFiles.stream().filter(filter).collect(Collectors.toSet());
+    return new TableFiles(base, baseDelete, changeInsert, changeDelete, change);
   }
 }

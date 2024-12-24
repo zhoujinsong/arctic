@@ -27,7 +27,7 @@ import org.apache.amoro.MockAmoroManagementServer;
 import org.apache.amoro.api.CatalogMeta;
 import org.apache.amoro.catalog.CatalogTestHelper;
 import org.apache.amoro.data.ChangeAction;
-import org.apache.amoro.io.reader.GenericKeyedDataReader;
+import org.apache.amoro.io.reader.GenericReplaceDataReader;
 import org.apache.amoro.io.writer.GenericBaseTaskWriter;
 import org.apache.amoro.io.writer.GenericChangeTaskWriter;
 import org.apache.amoro.io.writer.GenericTaskWriters;
@@ -213,15 +213,17 @@ public abstract class TableTestBaseForTrino extends AbstractTestQueryFramework {
   }
 
   protected static List<Record> readKeyedTable(KeyedTable keyedTable) {
-    GenericKeyedDataReader reader =
-        new GenericKeyedDataReader(
+    GenericReplaceDataReader reader =
+        new GenericReplaceDataReader(
             keyedTable.io(),
             keyedTable.schema(),
             keyedTable.schema(),
             keyedTable.primaryKeySpec(),
             null,
             true,
-            IdentityPartitionConverters::convertConstant);
+            IdentityPartitionConverters::convertConstant,
+            false,
+            null);
     List<Record> result = Lists.newArrayList();
     try (CloseableIterable<CombinedScanTask> combinedScanTasks = keyedTable.newScan().planTasks()) {
       combinedScanTasks.forEach(

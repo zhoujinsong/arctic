@@ -75,7 +75,6 @@ public class MixedFormatFileWriter extends AbstractStreamOperator<WriteResult>
       TaskWriterFactory<RowData> taskWriterFactory,
       int minFileSplitCount,
       MixedFormatTableLoader tableLoader,
-      boolean upsert,
       boolean submitEmptySnapshot) {
     this.shuffleRule = shuffleRule;
     this.taskWriterFactory = taskWriterFactory;
@@ -83,9 +82,8 @@ public class MixedFormatFileWriter extends AbstractStreamOperator<WriteResult>
     this.tableLoader = tableLoader;
     this.submitEmptySnapshot = submitEmptySnapshot;
     LOG.info(
-        "MixedFormatFileWriter is created with minFileSplitCount: {}, upsert: {}, submitEmptySnapshot: {}",
+        "MixedFormatFileWriter is created with minFileSplitCount: {}, submitEmptySnapshot: {}",
         minFileSplitCount,
-        upsert,
         submitEmptySnapshot);
   }
 

@@ -19,8 +19,8 @@
 package org.apache.amoro.hive.io;
 
 import org.apache.amoro.data.ChangeAction;
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericKeyedDataReader;
-import org.apache.amoro.hive.io.reader.AdaptHiveGenericUnkeyedDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericReplaceDataReader;
+import org.apache.amoro.hive.io.reader.MixedHiveGenericUnkeyedDataReader;
 import org.apache.amoro.hive.io.writer.AdaptHiveGenericTaskWriterBuilder;
 import org.apache.amoro.hive.table.HiveLocationKind;
 import org.apache.amoro.hive.table.SupportHive;
@@ -192,34 +192,25 @@ public class HiveDataTestHelpers {
       Schema projectSchema,
       boolean useDiskMap,
       boolean readDeletedData) {
-    AdaptHiveGenericKeyedDataReader reader;
+    MixedHiveGenericReplaceDataReader reader;
     if (projectSchema == null) {
       projectSchema = keyedTable.schema();
     }
+    StructLikeCollections structLikeCollections = null;
     if (useDiskMap) {
-      reader =
-          new AdaptHiveGenericKeyedDataReader(
-              keyedTable.io(),
-              keyedTable.schema(),
-              projectSchema,
-              keyedTable.primaryKeySpec(),
-              null,
-              true,
-              IdentityPartitionConverters::convertConstant,
-              null,
-              false,
-              new StructLikeCollections(true, 0L));
-    } else {
-      reader =
-          new AdaptHiveGenericKeyedDataReader(
-              keyedTable.io(),
-              keyedTable.schema(),
-              projectSchema,
-              keyedTable.primaryKeySpec(),
-              null,
-              true,
-              IdentityPartitionConverters::convertConstant);
+      structLikeCollections = new StructLikeCollections(true, 0L);
     }
+    reader =
+        new MixedHiveGenericReplaceDataReader(
+            keyedTable.io(),
+            keyedTable.schema(),
+            projectSchema,
+            keyedTable.primaryKeySpec(),
+            null,
+            true,
+            IdentityPartitionConverters::convertConstant,
+            false,
+            structLikeCollections);
 
     return MixedDataTestHelpers.readKeyedTable(
         keyedTable, reader, expression, projectSchema, readDeletedData);
@@ -234,10 +225,10 @@ public class HiveDataTestHelpers {
         MetadataColumns.appendChangeStoreMetadataColumns(keyedTable.schema());
     Schema expectProjectSchema = MetadataColumns.appendChangeStoreMetadataColumns(projectSchema);
 
-    AdaptHiveGenericUnkeyedDataReader reader;
+    MixedHiveGenericUnkeyedDataReader reader;
     if (useDiskMap) {
       reader =
-          new AdaptHiveGenericUnkeyedDataReader(
+          new MixedHiveGenericUnkeyedDataReader(
               keyedTable.asKeyedTable().io(),
               expectTableSchema,
               expectProjectSchema,
@@ -248,7 +239,7 @@ public class HiveDataTestHelpers {
               new StructLikeCollections(true, 0L));
     } else {
       reader =
-          new AdaptHiveGenericUnkeyedDataReader(
+          new MixedHiveGenericUnkeyedDataReader(
               keyedTable.asKeyedTable().io(),
               expectTableSchema,
               expectProjectSchema,
@@ -267,10 +258,10 @@ public class HiveDataTestHelpers {
       projectSchema = table.schema();
     }
 
-    AdaptHiveGenericUnkeyedDataReader reader;
+    MixedHiveGenericUnkeyedDataReader reader;
     if (useDiskMap) {
       reader =
-          new AdaptHiveGenericUnkeyedDataReader(
+          new MixedHiveGenericUnkeyedDataReader(
               table.io(),
               table.schema(),
               projectSchema,
@@ -281,7 +272,7 @@ public class HiveDataTestHelpers {
               new StructLikeCollections(true, 0L));
     } else {
       reader =
-          new AdaptHiveGenericUnkeyedDataReader(
+          new MixedHiveGenericUnkeyedDataReader(
               table.io(),
               table.schema(),
               projectSchema,
