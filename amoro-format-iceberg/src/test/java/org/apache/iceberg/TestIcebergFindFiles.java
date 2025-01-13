@@ -48,6 +48,10 @@ public class TestIcebergFindFiles extends TestBase {
 
   @Rule public TemporaryFolder tempDir = new TemporaryFolder();
 
+  public TestIcebergFindFiles(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
+
   @Before
   public void setUp() throws Exception {
     this.tableDir = tempDir.newFolder();
